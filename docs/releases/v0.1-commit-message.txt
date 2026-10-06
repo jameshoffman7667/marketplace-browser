@@ -1,0 +1,7 @@
+v0.1: Self-hosted classifieds tracker with global location, alerts and browser extension
+
+- Docker server + web UI (feed, searches, sources, settings), SQLite, stdlib only
+- One global location/radius for all saved searches; baselined, no alert floods
+- Sources: RSS/Atom, IMAP alert mailbox, ingest API; alerts via ntfy, webhook, email
+- Chrome/Edge companion extension for Facebook Marketplace and Kijiji
+- Dockhand stack, GitHub Action (test, multi-arch build, Docker Hub push), changelog, spec v0.1

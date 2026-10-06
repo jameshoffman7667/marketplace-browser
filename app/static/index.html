@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f6f5c">
+<title>Classifieds Tracker</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1d2321;--mute:#66706b;--line:#dcdad2;--acc:#1f6f5c;--acc-ink:#fff;--warn:#b4531a;--bad:#b3261e;--chip:#ecebe4;--new:#e6f2ee}
+@media (prefers-color-scheme:dark){:root{--bg:#121513;--card:#1b1f1d;--ink:#e8ece9;--mute:#98a39d;--line:#2b312e;--acc:#4fb79c;--acc-ink:#0b1210;--warn:#e89a62;--bad:#f2867e;--chip:#262c29;--new:#1a2b26}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar{max-width:980px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:.2px}
+.loc{margin-left:auto;font-size:13px;color:var(--mute);background:var(--chip);border-radius:999px;padding:4px 12px;cursor:pointer;border:0}
+nav{max-width:980px;margin:0 auto;display:flex;gap:4px;padding:0 12px 8px;overflow-x:auto}
+nav button{border:0;background:none;color:var(--mute);padding:8px 14px;border-radius:8px;font:inherit;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--acc);color:var(--acc-ink);font-weight:600}
+main{max-width:980px;margin:0 auto;padding:16px}
+h2{margin:0 0 12px;font-size:18px}
+h3{margin:18px 0 8px;font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.mute{color:var(--mute);font-size:13px}
+.chip{display:inline-block;background:var(--chip);border-radius:999px;padding:2px 10px;font-size:12px;margin:2px 4px 2px 0}
+.badge{background:var(--acc);color:var(--acc-ink);border-radius:6px;padding:1px 8px;font-size:12px;font-weight:700}
+.bad{color:var(--bad)} .warn{color:var(--warn)} .ok{color:var(--acc)}
+button.btn,a.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 14px;border-radius:8px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
+button.btn.pri{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
+button.btn.danger{color:var(--bad)}
+button.sm{padding:4px 10px;font-size:13px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+label.inline{display:flex;gap:8px;align-items:center;color:var(--ink);margin:6px 0}
+label.inline input{width:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
+.item{display:flex;gap:12px;align-items:flex-start}
+.item.isnew{background:var(--new);border-color:var(--acc)}
+.item img{width:96px;height:96px;object-fit:cover;border-radius:8px;background:var(--chip);flex:none}
+.item .ph{width:96px;height:96px;border-radius:8px;background:var(--chip);flex:none}
+.price{font-weight:700;font-size:16px}
+.title{font-weight:600;color:var(--ink);text-decoration:none;display:block;margin-bottom:2px}
+.title:hover{text-decoration:underline}
+.acts{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(560px,94vw);padding:18px;max-height:92vh;overflow:auto}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.empty{text-align:center;color:var(--mute);padding:36px 12px}
+#login{max-width:340px;margin:12vh auto;padding:0 16px}
+code{background:var(--chip);padding:1px 6px;border-radius:5px;font-size:13px;word-break:break-all}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:10px;z-index:20;max-width:90vw}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let S = {tab: 'feed', settings: {}, sources: [], searches: [], me: null, feedFilter: {search_id: '', source_id: '', state: 'active'}};
+
+async function api(method, path, body) {
+  const r = await fetch(path, {method, headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
+  let data = {};
+  try { data = await r.json(); } catch (e) {}
+  if (r.status === 401 && path !== '/api/login') { showLogin(); throw new Error('login'); }
+  if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
+  return data;
+}
+function toast(msg, ms = 3200) {
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), ms);
+}
+const guard = fn => async (...a) => { try { await fn(...a); } catch (e) { if (e.message !== 'login') toast(e.message); } };
+
+function showLogin() {
+  $('#app').innerHTML = `<div id="login"><h2>Classifieds Tracker</h2><div class="card">
+    <label>Password</label><input id="pw" type="password" autofocus>
+    <div style="margin-top:12px"><button class="btn pri" id="go">Sign in</button></div><div id="lerr" class="bad" style="margin-top:8px"></div></div></div>`;
+  const go = async () => { try { await api('POST', '/api/login', {password: $('#pw').value}); boot(); } catch (e) { $('#lerr').textContent = e.message; } };
+  $('#go').onclick = go; $('#pw').onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+
+async function boot() {
+  try {
+    S.me = await api('GET', '/api/me');
+  } catch (e) { return; }
+  await loadBase();
+  renderShell(); show(S.tab);
+}
+async function loadBase() {
+  [S.settings, S.sources, S.searches] = await Promise.all([api('GET', '/api/settings'), api('GET', '/api/sources'), api('GET', '/api/searches')]);
+}
+function locLabel() {
+  const s = S.settings;
+  if (!s.lat || !s.lon) return 'Set location';
+  return (s.location_label ? s.location_label.split(',')[0] : s.lat + ', ' + s.lon) + ' · ' + (s.radius_km || 0) + ' km';
+}
+function renderShell() {
+  $('#app').innerHTML = `<header><div class="bar"><span class="brand">Classifieds Tracker</span>
+    <button class="loc" id="locbtn" title="Change location for all searches">${esc(locLabel())}</button></div>
+    <nav>${['feed','searches','sources','settings'].map(t => `<button data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</nav></header>
+    <main id="main"></main><footer class="mute" style="text-align:center;padding:8px 0 24px">Classifieds Tracker v${esc(S.me.version || '')}</footer>`;
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.t));
+  $('#locbtn').onclick = () => show('settings');
+}
+function show(tab) {
+  S.tab = tab;
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  const lb = $('#locbtn'); if (lb) lb.textContent = locLabel();
+  ({feed: viewFeed, searches: viewSearches, sources: viewSources, settings: viewSettings})[tab]();
+}
+
+/* ---------------------------------------------------------------- feed */
+async function viewFeed() {
+  const f = S.feedFilter;
+  const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
+  const data = await api('GET', '/api/feed?' + qs).catch(e => ({items: [], total: 0}));
+  const opt = (arr, key, val) => arr.map(x => `<option value="${x.id}" ${String(val) === String(x.id) ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
+  $('#main').innerHTML = `<div class="card row">
+    <select id="fs" style="width:auto"><option value="">All searches</option>${opt(S.searches, 'id', f.search_id)}</select>
+    <select id="fsrc" style="width:auto"><option value="">All sources</option>${opt(S.sources, 'id', f.source_id)}</select>
+    <select id="fst" style="width:auto">${[['active','Active'],['saved','Saved'],['hidden','Hidden'],['all','Everything']].map(([v, l]) => `<option value="${v}" ${f.state === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <span class="grow"></span><span class="mute">${data.total} listing${data.total === 1 ? '' : 's'}</span>
+    <button class="btn sm" id="seen">Mark all seen</button></div>
+    ${data.items.length ? data.items.map(feedCard).join('') : `<div class="empty">${S.searches.length ? 'No listings yet. They appear here once your sources have been checked.' : 'Create a saved search to get started.'}</div>`}`;
+  $('#fs').onchange = e => { S.feedFilter.search_id = e.target.value; viewFeed(); };
+  $('#fsrc').onchange = e => { S.feedFilter.source_id = e.target.value; viewFeed(); };
+  $('#fst').onchange = e => { S.feedFilter.state = e.target.value; viewFeed(); };
+  $('#seen').onclick = guard(async () => { await api('POST', '/api/feed/mark-seen'); viewFeed(); });
+  document.querySelectorAll('[data-act]').forEach(b => b.onclick = guard(async () => {
+    await api('POST', `/api/listings/${b.dataset.id}/state`, {state: b.dataset.act}); viewFeed();
+  }));
+}
+function feedCard(l) {
+  const bits = [l.price != null ? `<span class="price">${l.currency && l.currency !== '$' ? esc(l.currency) + ' ' : '$'}${Number(l.price).toLocaleString()}</span>` : '',
+    l.distance_km != null ? `<span class="mute">${l.distance_km} km</span>` : '', `<span class="mute">${esc(l.source)}</span>`,
+    l.location ? `<span class="mute">${esc(l.location)}</span>` : ''].filter(Boolean).join(' · ');
+  return `<div class="card item ${l.is_new ? 'isnew' : ''}">
+    ${l.image ? `<img src="${esc(l.image)}" loading="lazy" referrerpolicy="no-referrer" alt="" onerror="this.outerHTML='<div class=ph></div>'">` : '<div class="ph"></div>'}
+    <div class="grow"><a class="title" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${l.is_new ? '<span class="badge">NEW</span> ' : ''}${esc(l.title || l.url)}</a>
+    <div>${bits}</div><div>${l.searches.map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div>
+    <div class="acts"><a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">Open</a>
+    ${l.state !== 'saved' ? `<button class="btn sm" data-act="saved" data-id="${l.id}">Save</button>` : `<button class="btn sm" data-act="seen" data-id="${l.id}">Unsave</button>`}
+    ${l.state === 'new' ? `<button class="btn sm" data-act="seen" data-id="${l.id}">Seen</button>` : ''}
+    ${l.state !== 'hidden' ? `<button class="btn sm" data-act="hidden" data-id="${l.id}">Not interested</button>` : `<button class="btn sm" data-act="seen" data-id="${l.id}">Restore</button>`}</div></div></div>`;
+}
+
+/* ---------------------------------------------------------------- searches */
+function viewSearches() {
+  $('#main').innerHTML = `<div class="row" style="margin-bottom:12px"><h2 class="grow" style="margin:0">Saved searches</h2><button class="btn pri" id="add">New search</button></div>
+  <div class="mute" style="margin-bottom:12px">All searches use your location: <strong>${esc(locLabel())}</strong>. Change it once in Settings and every search follows.</div>
+  ${S.searches.length ? S.searches.map(s => `<div class="card"><div class="row"><div class="grow"><strong>${esc(s.name)}</strong> ${s.enabled ? '' : '<span class="chip">paused</span>'}
+    ${s.new_count ? `<span class="badge">${s.new_count} new</span>` : ''}
+    <div class="mute">${esc(s.keywords)}${s.exclude ? ' · not: ' + esc(s.exclude) : ''}${s.price_min != null || s.price_max != null ? ` · $${s.price_min ?? 0}–${s.price_max ?? '∞'}` : ''}</div>
+    <div class="mute">${s.total_count} listings · alerts: ${esc(s.alert_mode)} · ${s.source_ids.length ? s.source_ids.map(i => esc((S.sources.find(x => x.id === i) || {name: '?'}).name)).join(', ') : 'all sources'}</div></div>
+    <button class="btn sm" data-edit="${s.id}">Edit</button><button class="btn sm" data-view="${s.id}">View</button>
+    <button class="btn sm danger" data-del="${s.id}">Delete</button></div></div>`).join('') : '<div class="empty">No saved searches yet.</div>'}`;
+  $('#add').onclick = () => searchDialog();
+  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => searchDialog(S.searches.find(s => s.id == b.dataset.edit)));
+  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { S.feedFilter.search_id = b.dataset.view; show('feed'); });
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = guard(async () => {
+    if (!confirm('Delete this search and its matches?')) return;
+    await api('DELETE', '/api/searches/' + b.dataset.del); await loadBase(); viewSearches();
+  }));
+}
+function dialog(html) {
+  const d = document.createElement('dialog'); d.innerHTML = html; document.body.appendChild(d);
+  d.addEventListener('close', () => d.remove()); d.showModal(); return d;
+}
+function searchDialog(s) {
+  s = s || {name: '', keywords: '', exclude: '', price_min: null, price_max: null, source_ids: [], alert_mode: 'instant', channels: [], enabled: 1};
+  const d = dialog(`<h2>${s.id ? 'Edit' : 'New'} search</h2>
+  <label>Name (optional)</label><input id="n" value="${esc(s.name)}">
+  <label>Keywords (all must match)</label><input id="k" value="${esc(s.keywords)}" placeholder="standing desk">
+  <label>Exclude words</label><input id="x" value="${esc(s.exclude)}" placeholder="broken parts">
+  <div class="grid2"><div><label>Min price</label><input id="pmin" type="number" min="0" value="${s.price_min ?? ''}"></div><div><label>Max price</label><input id="pmax" type="number" min="0" value="${s.price_max ?? ''}"></div></div>
+  <label>Sources (none ticked = all)</label>${S.sources.length ? S.sources.map(x => `<label class="inline"><input type="checkbox" name="src" value="${x.id}" ${s.source_ids.includes(x.id) ? 'checked' : ''}>${esc(x.name)}</label>`).join('') : '<div class="mute">Add a source first.</div>'}
+  <label>Alerts</label><select id="am">${[['instant','Instant'],['hourly','Hourly digest'],['daily','Daily digest'],['off','Off (feed only)']].map(([v, l]) => `<option value="${v}" ${s.alert_mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+  <label>Send alerts via (none ticked = every configured channel)</label>${['ntfy','webhook','email'].map(c => `<label class="inline"><input type="checkbox" name="ch" value="${c}" ${s.channels.includes(c) ? 'checked' : ''}>${c}</label>`).join('')}
+  <label class="inline"><input type="checkbox" id="en" ${s.enabled ? 'checked' : ''}>Active</label>
+  <div class="mute" style="margin-top:8px">Uses the global location: ${esc(locLabel())}. Existing listings are added silently; only new ones alert.</div>
+  <div class="row" style="margin-top:14px"><span class="grow"></span><button class="btn" id="c">Cancel</button><button class="btn pri" id="sv">Save</button></div>`);
+  $('#c', d).onclick = () => d.close();
+  $('#sv', d).onclick = guard(async () => {
+    const body = {name: $('#n', d).value, keywords: $('#k', d).value, exclude: $('#x', d).value, price_min: $('#pmin', d).value, price_max: $('#pmax', d).value,
+      source_ids: [...d.querySelectorAll('[name=src]:checked')].map(x => +x.value), alert_mode: $('#am', d).value,
+      channels: [...d.querySelectorAll('[name=ch]:checked')].map(x => x.value), enabled: $('#en', d).checked};
+    await api(s.id ? 'PUT' : 'POST', '/api/searches' + (s.id ? '/' + s.id : ''), body);
+    d.close(); await loadBase(); viewSearches();
+  });
+}
+
+/* ---------------------------------------------------------------- sources */
+function agoText(t) { if (!t) return 'never'; const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'just now' : m < 90 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; }
+function viewSources() {
+  const typeName = {feed: 'RSS/Atom feed', email: 'Alert mailbox (IMAP)', ingest: 'Browser extension / API'};
+  $('#main').innerHTML = `<div class="row" style="margin-bottom:12px"><h2 class="grow" style="margin:0">Sources</h2><button class="btn pri" id="add">Add source</button></div>
+  <div class="card mute">Facebook Marketplace and Kijiji have no public search API. Use their own saved-search alert emails (Alert mailbox) or push results from your own signed-in browser (Browser extension / API). See the README.</div>
+  ${S.sources.length ? S.sources.map(s => `<div class="card"><div class="row"><div class="grow"><strong>${esc(s.name)}</strong> <span class="chip">${typeName[s.type]}</span> ${s.enabled ? '' : '<span class="chip">paused</span>'}
+  <div class="mute">Last checked ${agoText(s.last_run)}${s.last_error ? ` · <span class="bad">${esc(s.last_error)}</span>` : s.last_ok ? ' · <span class="ok">OK</span>' : ''}${s.fail_count >= 3 ? ' · <span class="warn">needs attention</span>' : ''}</div></div>
+  ${s.type !== 'ingest' ? `<button class="btn sm" data-run="${s.id}">Check now</button>` : ''}<button class="btn sm" data-edit="${s.id}">Edit</button><button class="btn sm danger" data-del="${s.id}">Delete</button></div></div>`).join('') : '<div class="empty">No sources yet.</div>'}`;
+  $('#add').onclick = () => sourceDialog();
+  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => sourceDialog(S.sources.find(s => s.id == b.dataset.edit)));
+  document.querySelectorAll('[data-run]').forEach(b => b.onclick = guard(async () => { b.textContent = 'Checking…'; await api('POST', `/api/sources/${b.dataset.run}/run`); await loadBase(); viewSources(); }));
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = guard(async () => {
+    if (!confirm('Delete this source and all listings found through it?')) return;
+    await api('DELETE', '/api/sources/' + b.dataset.del); await loadBase(); viewSources();
+  }));
+}
+function sourceDialog(s) {
+  s = s || {name: '', type: 'feed', config: {}, enabled: 1};
+  const c = s.config || {};
+  const d = dialog(`<h2>${s.id ? 'Edit' : 'Add'} source</h2>
+  <label>Name</label><input id="n" value="${esc(s.name)}" placeholder="Kijiji alerts">
+  <label>Type</label><select id="t" ${s.id ? 'disabled' : ''}>${[['feed','RSS/Atom feed'],['email','Alert mailbox (IMAP)'],['ingest','Browser extension / API']].map(([v, l]) => `<option value="${v}" ${s.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+  <div id="f"></div><label class="inline"><input type="checkbox" id="en" ${s.enabled ? 'checked' : ''}>Active</label>
+  <div class="row" style="margin-top:14px"><span class="grow"></span><button class="btn" id="cx">Cancel</button><button class="btn pri" id="sv">Save</button></div>`);
+  const fields = () => {
+    const t = $('#t', d).value;
+    $('#f', d).innerHTML = t === 'feed' ? `<label>Feed URL template</label><input id="u" value="${esc(c.url_template)}" placeholder="https://example.com/rss?q={q}&lat={lat}&lon={lon}&radius={radius_km}">
+      <div class="mute">Placeholders: {q} keywords, {lat}, {lon}, {radius_km}, {city}, {city_slug}, {location}. They come from your global location and each search.</div>`
+    : t === 'email' ? `<div class="grid2"><div><label>IMAP host</label><input id="h" value="${esc(c.host)}" placeholder="imap.gmail.com"></div><div><label>Port</label><input id="p" value="${esc(c.port || 993)}"></div></div>
+      <div class="grid2"><div><label>Username</label><input id="us" value="${esc(c.user)}"></div><div><label>Password / app password</label><input id="pw" type="password" value="${esc(c.password)}"></div></div>
+      <div class="grid2"><div><label>Folder</label><input id="fo" value="${esc(c.folder || 'INBOX')}"></div><div><label>Only from (optional)</label><input id="ff" value="${esc(c.from_filter)}" placeholder="kijiji.ca"></div></div>
+      <label>Listing link pattern (regex)</label><input id="lp" value="${esc(c.link_pattern || 'kijiji\\.ca/v-|facebook\\.com/marketplace/item')}">
+      <div class="mute">Unread alert emails are parsed for listing links, then marked read.</div>`
+    : `<label>Search URL template (optional, for the extension)</label><input id="u" value="${esc(c.url_template)}" placeholder="https://www.facebook.com/marketplace/{city_slug}/search?query={q}">
+      <div class="row" style="margin-top:6px"><button class="btn sm" id="fbp" type="button">Use Facebook Marketplace preset</button></div>
+      <div class="mute">The browser extension asks the server for these URLs, filled in with your global location, opens them in your own signed-in browser and posts what it sees back. Leave the template empty if you only want to capture pages by hand with the extension. Give the source the same name the extension uses (default "Facebook Marketplace").</div>`;
+    const fbp = $('#fbp', d);
+    if (fbp) fbp.onclick = () => {
+      $('#u', d).value = 'https://www.facebook.com/marketplace/{city_slug}/search?query={q}&radius={radius_km}&sortBy=creation_time_descend&exact=false';
+      if (!$('#n', d).value) $('#n', d).value = 'Facebook Marketplace';
+    };
+  };
+  $('#t', d).onchange = fields; fields();
+  $('#cx', d).onclick = () => d.close();
+  $('#sv', d).onclick = guard(async () => {
+    const t = $('#t', d).value; let config = {};
+    if (t === 'feed' || t === 'ingest') config = {url_template: ($('#u', d).value || '').trim()};
+    else config = {host: $('#h', d).value.trim(), port: +$('#p', d).value || 993, user: $('#us', d).value, password: $('#pw', d).value, folder: $('#fo', d).value, from_filter: $('#ff', d).value.trim(), link_pattern: $('#lp', d).value, ssl: true};
+    await api(s.id ? 'PUT' : 'POST', '/api/sources' + (s.id ? '/' + s.id : ''), {name: $('#n', d).value, type: t, config, enabled: $('#en', d).checked});
+    d.close(); await loadBase(); viewSources();
+  });
+}
+
+/* ---------------------------------------------------------------- settings */
+async function viewSettings() {
+  const s = S.settings;
+  const alerts = await api('GET', '/api/alerts').catch(() => []);
+  $('#main').innerHTML = `<h2>Settings</h2>
+  <div class="card"><h3 style="margin-top:0">Location (applies to all searches)</h3>
+    <label>Place name or postal code</label><div class="row"><input id="lq" class="grow" value="${esc(s.location_label)}" placeholder="Toronto, ON"><button class="btn" id="find">Find</button></div>
+    <div id="lres"></div>
+    <div class="grid3"><div><label>Latitude</label><input id="lat" value="${esc(s.lat)}"></div><div><label>Longitude</label><input id="lon" value="${esc(s.lon)}"></div><div><label>Radius (km)</label><input id="rad" type="number" min="0" value="${esc(s.radius_km)}"></div></div>
+    <div class="mute" style="margin-top:8px">Changing this updates every search at once. Listings that newly fall inside the area show up in the feed without alerting; only listings found afterwards alert.</div>
+    <div style="margin-top:10px"><button class="btn pri" id="saveloc">Save location</button></div></div>
+  <div class="card"><h3 style="margin-top:0">Alerts</h3>
+    <label>ntfy topic URL</label><input id="ntfy" value="${esc(s.ntfy_url)}" placeholder="https://ntfy.sh/my-secret-topic">
+    <label>Webhook URL (receives JSON)</label><input id="wh" value="${esc(s.webhook_url)}">
+    <div class="grid2"><div><label>SMTP host</label><input id="sh" value="${esc(s.smtp_host)}"></div><div><label>SMTP port</label><input id="sp" value="${esc(s.smtp_port)}"></div></div>
+    <div class="grid2"><div><label>SMTP user</label><input id="su" value="${esc(s.smtp_user)}"></div><div><label>SMTP password</label><input id="spw" type="password" value="${esc(s.smtp_password)}"></div></div>
+    <div class="grid3"><div><label>From</label><input id="sf" value="${esc(s.smtp_from)}"></div><div><label>To</label><input id="st" value="${esc(s.smtp_to)}"></div><div><label>Security</label><select id="stls">${['starttls','ssl','none'].map(v => `<option ${s.smtp_tls === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
+    <div class="grid3"><div><label>Quiet hours from</label><input id="qs" type="time" value="${esc(s.quiet_start)}"></div><div><label>to</label><input id="qe" type="time" value="${esc(s.quiet_end)}"></div><div><label>Check every (min)</label><input id="pm" type="number" min="1" value="${esc(s.poll_minutes)}"></div></div>
+    <label>This server's public URL (used in alert links)</label><input id="bu" value="${esc(s.base_url)}" placeholder="https://tracker.example.com">
+    <div class="row" style="margin-top:12px"><button class="btn pri" id="savealerts">Save</button><button class="btn" id="test">Send test alert</button></div></div>
+  <div class="card"><h3 style="margin-top:0">Browser extension / API</h3>
+    <div class="mute">Paste this token into the browser extension's options (or send it as the <code>X-Ingest-Token</code> header):</div><p><code id="tok">${esc(S.me.ingest_token)}</code></p>
+    <div class="mute">POST <code>/api/ingest</code> with <code>{"source":"Facebook Marketplace","search_id":1,"listings":[{"id","url","title","price","image","location"}]}</code></div></div>
+  <div class="card"><h3 style="margin-top:0">Recent alert log</h3>${alerts.length ? `<table><tr><th>When</th><th>Via</th><th>Title</th><th></th></tr>${alerts.map(a => `<tr><td>${new Date(a.ts * 1000).toLocaleString()}</td><td>${esc(a.channel)}</td><td>${esc(a.title)}</td><td>${a.ok ? '<span class="ok">sent</span>' : '<span class="bad">' + esc(a.error) + '</span>'}</td></tr>`).join('')}</table>` : '<div class="mute">Nothing sent yet.</div>'}</div>
+  <div><button class="btn" id="logout">Sign out</button></div>`;
+  $('#find').onclick = guard(async () => {
+    const r = await api('POST', '/api/geocode', {q: $('#lq').value});
+    $('#lres').innerHTML = r.results.length ? r.results.map((x, i) => `<div><button class="btn sm" data-i="${i}" style="margin:3px 0;text-align:left">${esc(x.label)}</button></div>`).join('') : '<div class="mute">No matches.</div>';
+    document.querySelectorAll('#lres [data-i]').forEach(b => b.onclick = () => { const x = r.results[b.dataset.i]; $('#lq').value = x.label; $('#lat').value = x.lat.toFixed(5); $('#lon').value = x.lon.toFixed(5); $('#lres').innerHTML = ''; });
+  });
+  $('#saveloc').onclick = guard(async () => {
+    S.settings = await api('PUT', '/api/settings', {location_label: $('#lq').value, lat: $('#lat').value, lon: $('#lon').value, radius_km: $('#rad').value});
+    $('#locbtn').textContent = locLabel(); toast('Location saved for all searches');
+  });
+  $('#savealerts').onclick = guard(async () => {
+    S.settings = await api('PUT', '/api/settings', {ntfy_url: $('#ntfy').value, webhook_url: $('#wh').value, smtp_host: $('#sh').value, smtp_port: $('#sp').value, smtp_user: $('#su').value, smtp_password: $('#spw').value, smtp_from: $('#sf').value, smtp_to: $('#st').value, smtp_tls: $('#stls').value, quiet_start: $('#qs').value, quiet_end: $('#qe').value, poll_minutes: $('#pm').value, base_url: $('#bu').value});
+    toast('Saved');
+  });
+  $('#test').onclick = guard(async () => { const r = await api('POST', '/api/test-alert'); toast(r.ok ? 'Test alert sent' : 'Test failed, see the log below'); viewSettings(); });
+  $('#logout').onclick = async () => { await api('POST', '/api/logout'); showLogin(); };
+}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# LOCAL BUILD (development). For Dockhand / production use stack/compose.yml, which pulls the image from Docker Hub.
+services:
+  tracker:
+    build: .
+    container_name: classifieds-tracker
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Required: password for the web UI. Change it.
+      APP_PASSWORD: "change-me"
+      # Optional: fixed token for the browser extension / ingest API.
+      # INGEST_TOKEN: "long-random-string"
+      # Used for quiet hours and digest timing.
+      TZ: "America/Toronto"
+      # Lowest allowed check interval in minutes.
+      # MIN_POLL_MINUTES: "5"
+    volumes:
+      - ./data:/data

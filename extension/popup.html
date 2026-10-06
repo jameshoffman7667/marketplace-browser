@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+:root{--bg:#fff;--ink:#1d2321;--mute:#66706b;--line:#dcdad2;--acc:#1f6f5c;--bad:#b3261e;--chip:#ecebe4}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1f1d;--ink:#e8ece9;--mute:#98a39d;--line:#2b312e;--acc:#4fb79c;--bad:#f2867e;--chip:#262c29}}
+body{width:340px;margin:0;padding:14px;background:var(--bg);color:var(--ink);font:13px/1.4 system-ui,sans-serif}
+h1{font-size:15px;margin:0 0 8px}
+button{width:100%;padding:8px;margin:4px 0;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:inherit;cursor:pointer}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+.mute{color:var(--mute)} .bad{color:var(--bad)} .ok{color:var(--acc)}
+.res{border-top:1px solid var(--line);padding:6px 0}
+a{color:var(--acc)} #msg{margin:6px 0;min-height:18px}
+</style>
+</head>
+<body>
+<h1>Classifieds Tracker</h1>
+<div id="conn" class="mute"></div>
+<button class="pri" id="capture">Capture this page</button>
+<button id="run">Run all searches now</button>
+<div id="msg"></div>
+<div id="last"></div>
+<div style="margin-top:8px"><a href="#" id="opts">Options</a> &nbsp; <a href="#" id="open">Open tracker</a></div>
+<script src="popup.js"></script>
+</body>
+</html>

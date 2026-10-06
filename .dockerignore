@@ -1,0 +1,11 @@
+data/
+tests/
+tools/
+extension/
+stack/
+.github/
+dist/
+node_modules/
+*.md
+.git/
+__pycache__/
