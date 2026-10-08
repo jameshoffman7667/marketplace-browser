@@ -33,10 +33,11 @@ from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
-PORT = int(os.environ.get("PORT", "8080"))
+PORT = int(os.environ.get("PORT", "3501"))
 MIN_POLL_MINUTES = float(os.environ.get("MIN_POLL_MINUTES", "5"))
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-VERSION = os.environ.get("APP_VERSION", "0.1.0")
+VERSION = os.environ.get("APP_VERSION", "0.3.0")
+APIFY_BASE = os.environ.get("APIFY_BASE", "https://api.apify.com").rstrip("/")
 UA = f"ClassifiedsTracker/{VERSION} (+self-hosted personal use)"
 # Used by the browser extension (ingest and tasks are token-authenticated; health only reports the version).
 CORS_PATHS = ("/api/ingest", "/api/extension/tasks", "/api/health")
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS matches (
   search_id INTEGER NOT NULL, listing_id INTEGER NOT NULL, found REAL NOT NULL,
   baseline INTEGER NOT NULL DEFAULT 0, alerted REAL, state TEXT NOT NULL DEFAULT 'new',
   PRIMARY KEY (search_id, listing_id));
+CREATE TABLE IF NOT EXISTS apify_usage (source_id INTEGER NOT NULL, ts REAL NOT NULL, items INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS feed_runs (
   search_id INTEGER NOT NULL, source_id INTEGER NOT NULL, last_run REAL,
   PRIMARY KEY (search_id, source_id));
@@ -405,6 +407,118 @@ def run_feed_source(source):
     return total
 
 
+
+# ---------------------------------------------------------------- Apify source
+APIFY_ACTOR = "apify/facebook-marketplace-scraper"
+APIFY_FB_TEMPLATE = ("https://www.facebook.com/marketplace/{city_slug}/search/"
+                     "?query={q}&radius={radius_km}&sortBy=creation_time_descend&exact=false")
+APIFY_MIN_INTERVAL = 15  # minutes; every run costs money
+
+
+def dig(d, *path):
+    for k in path:
+        if not isinstance(d, dict):
+            return None
+        d = d.get(k)
+    return d
+
+
+def apify_to_listing(it):
+    """Map one dataset item from the Facebook Marketplace actor to the ingest format.
+    Field names follow the actor's published sample output; every lookup is defensive."""
+    if not isinstance(it, dict) or it.get("is_sold"):
+        return None
+    lid = str(it.get("id") or "")
+    url = it.get("listingUrl") or (f"https://www.facebook.com/marketplace/item/{lid}/" if lid else "")
+    title = it.get("marketplace_listing_title") or it.get("custom_title") or ""
+    if not (lid or url) or not title:
+        return None
+    price = dig(it, "listing_price", "amount")
+    if price in (None, ""):
+        price = dig(it, "listing_price", "formatted_amount")
+    img = (dig(it, "primary_listing_photo", "image", "uri") or dig(it, "primary_listing_photo", "listing_image", "uri")
+           or dig(it, "primary_listing_photo", "uri") or "")
+    city = dig(it, "location", "reverse_geocode", "city") or ""
+    state = dig(it, "location", "reverse_geocode", "state") or ""
+    desc = it.get("description")
+    if isinstance(desc, dict):
+        desc = desc.get("text")
+    desc = desc or dig(it, "redacted_description", "text") or ""
+    posted = it.get("creation_time") or it.get("creationTime") or ""
+    if isinstance(posted, (int, float)) and posted > 1e9:
+        posted = datetime.utcfromtimestamp(posted).strftime("%Y-%m-%d %H:%M")
+    out = {"id": lid or url, "url": url, "title": title, "price": price,
+           "currency": dig(it, "listing_price", "currency") or "", "image": img,
+           "location": ", ".join(x for x in (city, state) if x), "description": desc, "posted": str(posted)}
+    lat, lon = dig(it, "location", "latitude"), dig(it, "location", "longitude")
+    if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+        out["lat"], out["lon"] = lat, lon
+    return out
+
+
+def apify_interval(source):
+    cfg = json.loads(source["config"] or "{}")
+    try:
+        return max(float(cfg.get("interval_minutes") or 60), APIFY_MIN_INTERVAL) * 60
+    except (TypeError, ValueError):
+        return 3600
+
+
+def apify_usage(source_id):
+    r = q("SELECT COUNT(*) AS runs, COALESCE(SUM(items),0) AS items FROM apify_usage WHERE source_id=? AND ts>?",
+          (source_id, now() - 86400))[0]
+    return {"runs_24h": r["runs"], "items_24h": r["items"]}
+
+
+def apify_call(cfg, start_url):
+    actor = urllib.parse.quote((cfg.get("actor") or APIFY_ACTOR).strip().replace("/", "~"), safe="~")
+    params = {"timeout": "280"}
+    if cfg.get("max_charge_usd"):
+        params["maxTotalChargeUsd"] = str(cfg["max_charge_usd"])
+    endpoint = f"{APIFY_BASE}/v2/acts/{actor}/run-sync-get-dataset-items?" + urllib.parse.urlencode(params)
+    payload = {"startUrls": [{"url": start_url}],
+               "resultsLimit": int(cfg.get("results_limit") or 30),
+               "includeListingDetails": bool(cfg.get("details"))}
+    req = urllib.request.Request(endpoint, data=json.dumps(payload).encode(), method="POST", headers={
+        "Authorization": "Bearer " + cfg["token"], "Content-Type": "application/json", "User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            data = json.loads(r.read() or b"[]")
+    except urllib.error.HTTPError as e:
+        msg = ""
+        try:
+            msg = (json.loads(e.read()).get("error") or {}).get("message", "")
+        except Exception:  # noqa: BLE001
+            pass
+        hint = {401: "token rejected", 402: "Apify credit or spending limit reached", 408: "run took too long"}.get(e.code, "")
+        raise ValueError(f"Apify HTTP {e.code} {hint or msg}".strip())
+    if not isinstance(data, list):
+        raise ValueError("Apify returned an unexpected response")
+    return data
+
+
+def run_apify_source(source):
+    cfg = json.loads(source["config"] or "{}")
+    if not cfg.get("token"):
+        raise ValueError("Apify source has no API token")
+    template = (cfg.get("url_template") or APIFY_FB_TEMPLATE).strip()
+    cap = int(cfg.get("daily_cap") or 24)
+    settings = get_settings()
+    total = 0
+    for s in active_searches():
+        if not search_covers(s, source["id"]):
+            continue
+        if apify_usage(source["id"])["runs_24h"] >= cap:
+            raise ValueError(f"Daily run cap reached ({cap} runs per 24 h). Raise it in the source settings.")
+        ex("INSERT INTO apify_usage(source_id, ts, items) VALUES(?,?,0)", (source["id"], now()))
+        ts = q("SELECT MAX(ts) AS t FROM apify_usage WHERE source_id=?", (source["id"],))[0]["t"]
+        raw = apify_call(cfg, render_url(template, s, settings))
+        items = [x for x in (apify_to_listing(i) for i in raw) if x]
+        ex("UPDATE apify_usage SET items=? WHERE source_id=? AND ts=?", (len(raw), source["id"], ts))
+        stored, _ = ingest_listings(source, items, search=s)
+        total += stored
+    return total
+
 # ---------------------------------------------------------------- email source
 class LinkCollector(HTMLParser):
     def __init__(self):
@@ -642,6 +756,8 @@ def run_source(source):
             run_feed_source(source)
         elif source["type"] == "email":
             run_email_source(source)
+        elif source["type"] == "apify":
+            run_apify_source(source)
         else:
             return
         ex("UPDATE sources SET last_run=?, last_ok=?, last_error=NULL, fail_count=0, degraded_notified=0 WHERE id=?",
@@ -664,8 +780,12 @@ def poller():
             interval = max(float(settings["poll_minutes"] or 10), MIN_POLL_MINUTES) * 60
             forced = _force_run.is_set()
             _force_run.clear()
-            for src in q("SELECT * FROM sources WHERE enabled=1 AND type IN ('feed','email')"):
-                if forced or not src["last_run"] or now() - src["last_run"] >= interval:
+            for src in q("SELECT * FROM sources WHERE enabled=1 AND type IN ('feed','email','apify')"):
+                if src["type"] == "apify":  # paid per run: own interval, never triggered by settings changes
+                    due = not src["last_run"] or now() - src["last_run"] >= apify_interval(src)
+                else:
+                    due = forced or not src["last_run"] or now() - src["last_run"] >= interval
+                if due:
                     run_source(src)
             dispatch_alerts()
         except Exception:  # noqa: BLE001
@@ -676,9 +796,12 @@ def poller():
 # ---------------------------------------------------------------- API logic
 def mask_source(src):
     cfg = json.loads(src["config"] or "{}")
-    if cfg.get("password"):
-        cfg["password"] = MASK
+    for k in ("password", "token"):
+        if cfg.get(k):
+            cfg[k] = MASK
     src = dict(src)
+    if src["type"] == "apify":
+        src["usage"] = apify_usage(src["id"])
     src["config"] = cfg
     return src
 
@@ -847,14 +970,25 @@ def r_sources(h, body, params):
 
 def clean_source(body, existing=None):
     typ = body.get("type") or (existing or {}).get("type")
-    if typ not in ("feed", "email", "ingest"):
-        raise ApiError(400, "Type must be feed, email or ingest")
+    if typ not in ("feed", "email", "ingest", "apify"):
+        raise ApiError(400, "Type must be feed, email, ingest or apify")
     name = (body.get("name") or "").strip()
     if not name:
         raise ApiError(400, "Name is required")
     cfg = body.get("config") or {}
     if existing and cfg.get("password") == MASK:
         cfg["password"] = json.loads(existing["config"]).get("password", "")
+    if typ == "apify":
+        if existing and cfg.get("token") in (MASK, "", None):
+            cfg["token"] = json.loads(existing["config"]).get("token", "")
+        if not cfg.get("token"):
+            raise ApiError(400, "Apify API token is required")
+        try:
+            cfg["interval_minutes"] = max(int(cfg.get("interval_minutes") or 60), int(APIFY_MIN_INTERVAL))
+            cfg["results_limit"] = min(max(int(cfg.get("results_limit") or 30), 1), 500)
+            cfg["daily_cap"] = min(max(int(cfg.get("daily_cap") or 24), 1), 1000)
+        except (TypeError, ValueError):
+            raise ApiError(400, "Interval, results limit and daily cap must be whole numbers")
     return name, typ, json.dumps(cfg), 1 if body.get("enabled", True) else 0
 
 
@@ -886,6 +1020,7 @@ def r_source_del(h, body, params, sid):
     ex("DELETE FROM matches WHERE listing_id IN (SELECT id FROM listings WHERE source_id=?)", (sid,))
     ex("DELETE FROM listings WHERE source_id=?", (sid,))
     ex("DELETE FROM feed_runs WHERE source_id=?", (sid,))
+    ex("DELETE FROM apify_usage WHERE source_id=?", (sid,))
     ex("DELETE FROM sources WHERE id=?", (sid,))
     return {"ok": True}
 

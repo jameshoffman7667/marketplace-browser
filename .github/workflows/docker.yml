@@ -38,6 +38,9 @@ jobs:
       - name: Smoke test (server, alerts, ingest, location)
         run: python3 tests/smoke.py
 
+      - name: Apify source test (fake Apify API)
+        run: python3 tests/apify_test.py
+
   docker:
     needs: test
     runs-on: ubuntu-latest

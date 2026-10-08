@@ -1,0 +1,6 @@
+v0.2: Port 3501, Docker Hub image only, third-party scraper research
+
+- Default port 8080 -> 3501 (server, Dockerfile, stack, env example, extension, docs); breaking
+- Remove local-build docker-compose.yml; run the Docker Hub image via stack/compose.yml
+- Add research note on Bright Data / Apify / Secondhand MCP for Facebook Marketplace
+- Bump to 0.2.0; functional spec v0.2; changelog

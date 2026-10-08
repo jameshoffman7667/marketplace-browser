@@ -6,11 +6,11 @@ name: classifieds-tracker
 
 services:
   tracker:
-    image: ${TRACKER_IMAGE:?Set TRACKER_IMAGE, for example yourdockerhubuser/classifieds-tracker:0.1.0}
+    image: ${TRACKER_IMAGE:?Set TRACKER_IMAGE, for example yourdockerhubuser/classifieds-tracker:0.3.0}
     container_name: classifieds-tracker
     restart: unless-stopped
     ports:
-      - "${TRACKER_PORT:-8080}:8080"
+      - "${TRACKER_PORT:-3501}:3501"
     environment:
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD, the password for the web UI}
       INGEST_TOKEN: ${INGEST_TOKEN:-}          # optional; generated and shown in Settings when empty

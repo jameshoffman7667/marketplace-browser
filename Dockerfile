@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-ARG VERSION=0.1.0
+ARG VERSION=0.3.0
 ARG VCS_REF=unknown
 
 LABEL org.opencontainers.image.title="Classifieds Tracker" \
@@ -10,7 +10,7 @@ LABEL org.opencontainers.image.title="Classifieds Tracker" \
 
 ENV PYTHONUNBUFFERED=1 \
     DATA_DIR=/data \
-    PORT=8080 \
+    PORT=3501 \
     APP_VERSION=$VERSION
 
 # /data is created owned by the app user so a fresh named volume inherits that ownership.
@@ -22,9 +22,9 @@ COPY app/ /srv/app/
 
 USER tracker
 VOLUME /data
-EXPOSE 8080
+EXPOSE 3501
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:%s/api/health'%os.environ.get('PORT','8080'),timeout=4)"
+  CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:%s/api/health'%os.environ.get('PORT','3501'),timeout=4)"
 
 CMD ["python", "/srv/app/server.py"]

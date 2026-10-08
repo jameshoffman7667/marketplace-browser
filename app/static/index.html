@@ -197,11 +197,11 @@ function searchDialog(s) {
 /* ---------------------------------------------------------------- sources */
 function agoText(t) { if (!t) return 'never'; const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'just now' : m < 90 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; }
 function viewSources() {
-  const typeName = {feed: 'RSS/Atom feed', email: 'Alert mailbox (IMAP)', ingest: 'Browser extension / API'};
+  const typeName = {feed: 'RSS/Atom feed', email: 'Alert mailbox (IMAP)', ingest: 'Browser extension / API', apify: 'Apify scraper (paid)'};
   $('#main').innerHTML = `<div class="row" style="margin-bottom:12px"><h2 class="grow" style="margin:0">Sources</h2><button class="btn pri" id="add">Add source</button></div>
   <div class="card mute">Facebook Marketplace and Kijiji have no public search API. Use their own saved-search alert emails (Alert mailbox) or push results from your own signed-in browser (Browser extension / API). See the README.</div>
   ${S.sources.length ? S.sources.map(s => `<div class="card"><div class="row"><div class="grow"><strong>${esc(s.name)}</strong> <span class="chip">${typeName[s.type]}</span> ${s.enabled ? '' : '<span class="chip">paused</span>'}
-  <div class="mute">Last checked ${agoText(s.last_run)}${s.last_error ? ` · <span class="bad">${esc(s.last_error)}</span>` : s.last_ok ? ' · <span class="ok">OK</span>' : ''}${s.fail_count >= 3 ? ' · <span class="warn">needs attention</span>' : ''}</div></div>
+  <div class="mute">Last checked ${agoText(s.last_run)}${s.last_error ? ` · <span class="bad">${esc(s.last_error)}</span>` : s.last_ok ? ' · <span class="ok">OK</span>' : ''}${s.fail_count >= 3 ? ' · <span class="warn">needs attention</span>' : ''}${s.usage ? ` · ${s.usage.runs_24h} runs, ${s.usage.items_24h} results in the last 24 h` : ''}</div></div>
   ${s.type !== 'ingest' ? `<button class="btn sm" data-run="${s.id}">Check now</button>` : ''}<button class="btn sm" data-edit="${s.id}">Edit</button><button class="btn sm danger" data-del="${s.id}">Delete</button></div></div>`).join('') : '<div class="empty">No sources yet.</div>'}`;
   $('#add').onclick = () => sourceDialog();
   document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => sourceDialog(S.sources.find(s => s.id == b.dataset.edit)));
@@ -216,7 +216,7 @@ function sourceDialog(s) {
   const c = s.config || {};
   const d = dialog(`<h2>${s.id ? 'Edit' : 'Add'} source</h2>
   <label>Name</label><input id="n" value="${esc(s.name)}" placeholder="Kijiji alerts">
-  <label>Type</label><select id="t" ${s.id ? 'disabled' : ''}>${[['feed','RSS/Atom feed'],['email','Alert mailbox (IMAP)'],['ingest','Browser extension / API']].map(([v, l]) => `<option value="${v}" ${s.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+  <label>Type</label><select id="t" ${s.id ? 'disabled' : ''}>${[['feed','RSS/Atom feed'],['email','Alert mailbox (IMAP)'],['ingest','Browser extension / API'],['apify','Apify scraper (paid)']].map(([v, l]) => `<option value="${v}" ${s.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
   <div id="f"></div><label class="inline"><input type="checkbox" id="en" ${s.enabled ? 'checked' : ''}>Active</label>
   <div class="row" style="margin-top:14px"><span class="grow"></span><button class="btn" id="cx">Cancel</button><button class="btn pri" id="sv">Save</button></div>`);
   const fields = () => {
@@ -228,6 +228,13 @@ function sourceDialog(s) {
       <div class="grid2"><div><label>Folder</label><input id="fo" value="${esc(c.folder || 'INBOX')}"></div><div><label>Only from (optional)</label><input id="ff" value="${esc(c.from_filter)}" placeholder="kijiji.ca"></div></div>
       <label>Listing link pattern (regex)</label><input id="lp" value="${esc(c.link_pattern || 'kijiji\\.ca/v-|facebook\\.com/marketplace/item')}">
       <div class="mute">Unread alert emails are parsed for listing links, then marked read.</div>`
+    : t === 'apify' ? `<label>Apify API token</label><input id="tk" type="password" value="${esc(c.token)}" placeholder="apify_api_...">
+      <label>Actor</label><input id="ac" value="${esc(c.actor || 'apify/facebook-marketplace-scraper')}">
+      <label>Search URL template</label><input id="u" value="${esc(c.url_template || 'https://www.facebook.com/marketplace/{city_slug}/search/?query={q}&radius={radius_km}&sortBy=creation_time_descend&exact=false')}">
+      <div class="grid3"><div><label>Check every (min, 15+)</label><input id="iv" type="number" min="15" value="${esc(c.interval_minutes || 60)}"></div><div><label>Results per search</label><input id="rl" type="number" min="1" value="${esc(c.results_limit || 30)}"></div><div><label>Max runs per 24 h</label><input id="dc" type="number" min="1" value="${esc(c.daily_cap || 24)}"></div></div>
+      <label>Stop a run at (USD, optional)</label><input id="mc" value="${esc(c.max_charge_usd || '0.25')}">
+      <label class="inline"><input type="checkbox" id="dt" ${c.details ? 'checked' : ''}>Fetch listing details (adds description and coordinates; costs more per listing)</label>
+      <div class="mute">Runs the actor on Apify's servers for each active search, using your global location. Apify bills per listing returned and the Free plan has a small monthly credit. Each saved search is one run per check, so cost is roughly searches x checks per day x results x the actor's price. The first check for a search is baseline and never alerts. Nothing runs until the source is saved.</div>`
     : `<label>Search URL template (optional, for the extension)</label><input id="u" value="${esc(c.url_template)}" placeholder="https://www.facebook.com/marketplace/{city_slug}/search?query={q}">
       <div class="row" style="margin-top:6px"><button class="btn sm" id="fbp" type="button">Use Facebook Marketplace preset</button></div>
       <div class="mute">The browser extension asks the server for these URLs, filled in with your global location, opens them in your own signed-in browser and posts what it sees back. Leave the template empty if you only want to capture pages by hand with the extension. Give the source the same name the extension uses (default "Facebook Marketplace").</div>`;
@@ -241,7 +248,8 @@ function sourceDialog(s) {
   $('#cx', d).onclick = () => d.close();
   $('#sv', d).onclick = guard(async () => {
     const t = $('#t', d).value; let config = {};
-    if (t === 'feed' || t === 'ingest') config = {url_template: ($('#u', d).value || '').trim()};
+    if (t === 'apify') config = {token: $('#tk', d).value.trim(), actor: $('#ac', d).value.trim(), url_template: $('#u', d).value.trim(), interval_minutes: +$('#iv', d).value || 60, results_limit: +$('#rl', d).value || 30, daily_cap: +$('#dc', d).value || 24, max_charge_usd: $('#mc', d).value.trim(), details: $('#dt', d).checked};
+    else if (t === 'feed' || t === 'ingest') config = {url_template: ($('#u', d).value || '').trim()};
     else config = {host: $('#h', d).value.trim(), port: +$('#p', d).value || 993, user: $('#us', d).value, password: $('#pw', d).value, folder: $('#fo', d).value, from_filter: $('#ff', d).value.trim(), link_pattern: $('#lp', d).value, ssl: true};
     await api(s.id ? 'PUT' : 'POST', '/api/sources' + (s.id ? '/' + s.id : ''), {name: $('#n', d).value, type: t, config, enabled: $('#en', d).checked});
     d.close(); await loadBase(); viewSources();

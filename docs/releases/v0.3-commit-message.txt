@@ -1,0 +1,6 @@
+v0.3: Apify source for Facebook Marketplace
+
+- New "Apify scraper (paid)" source: runs apify/facebook-marketplace-scraper per saved search using the global location
+- Cost controls: own interval (15 min floor), 24 h run cap, results limit, per-run spend stop; settings changes never trigger paid runs
+- Token masked and sent as Bearer header; usage shown on the source card
+- tests/apify_test.py with a fake Apify API, added to CI; spec v0.3, changelog, bump to 0.3.0
