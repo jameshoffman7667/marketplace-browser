@@ -13,7 +13,7 @@ The server is Python standard library only (no third-party packages) with a SQLi
 ├── docs/                functional spec, pending changes log, research notes
 ├── tests/               server smoke test, Apify source test, real-Chromium extension test
 ├── CHANGELOG.md         what changed in each version
-└── VERSION              single source of the version (0.3.1)
+└── VERSION              single source of the version (0.3.2)
 ```
 
 ## 1. Release flow (GitHub Action)
@@ -23,6 +23,8 @@ Images are built only from tags. Pushing a tag `vMAJOR.MINOR.PATCH` (for example
 1. The repo needs the Actions secrets `DOCKERHUB_USERNAME` (`mybadreligon`) and `DOCKERHUB_TOKEN`.
 2. Each release updates `VERSION` and `extension/manifest.json` (they must match), `CHANGELOG.md`, `docs/functional-spec.md`, and `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md` (`python3 tests/release_check.py` verifies this).
 3. Tag and push: `git tag -a vX.Y.Z -m "<short>" -m "<long>" && git push origin vX.Y.Z`.
+
+`deploy/RELEASE.md` carries `Update: now` (deploy right away; only for a "build, push and update" request) or `Update: later` (deployed in the regular daily update run).
 
 Versions: patch for fixes and small tweaks, minor for new features, major only on explicit decision. Requests are logged in `docs/pending-changes.md` and built on request. If a workflow step fails, fix it with a new patch release instead of moving the tag.
 

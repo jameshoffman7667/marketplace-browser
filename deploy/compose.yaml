@@ -4,7 +4,7 @@ name: marketplace-browser
 
 services:
   marketplace-browser:
-    image: mybadreligon/marketplace-browser:0.3.1
+    image: mybadreligon/marketplace-browser:0.3.2
     container_name: marketplace-browser
     restart: unless-stopped
     init: true

@@ -2,6 +2,17 @@
 
 Versions are `MAJOR.MINOR.PATCH`; the git tag is `vMAJOR.MINOR.PATCH` and equals `VERSION`, the extension manifest and the Docker tag. Newest first. Each entry has a Short (50 characters or fewer) and a Long (250 or fewer) comment, used for the commit and the GitHub release. Entries v0.1, v0.2 and v0.3 predate this format and were never tagged or published as images.
 
+## v0.3.2 - 2026-10-22
+**Short:** Add Update now/later field to RELEASE.md
+**Long:** RELEASE.md gets a fixed Update field: now only when the build message was "build, push and update", otherwise later. Later releases go out in Claude Code's daily update run, now releases right away. release_check enforces the field.
+
+### Added
+- `deploy/RELEASE.md` has a fixed `Update:` line. `Update: now` is written only when the build message for that release was "build, push and update"; every other release says `Update: later`. Claude Code deploys `later` releases in its regular daily update run and `now` releases right away.
+- `tests/release_check.py` fails a release whose `RELEASE.md` lacks the line or has any value other than `now` or `later`.
+
+### Notes
+- v0.3.1 was committed but its tag was never pushed, so no 0.3.1 image or GitHub release exists. v0.3.2 is the first published release and includes everything in v0.3.1.
+
 ## v0.3.1 - 2026-10-22
 **Short:** Adopt standard release flow and deploy files
 **Long:** Tag workflow builds mybadreligon/marketplace-browser X.Y.Z, X.Y and latest, then creates the release. Adds deploy/compose.yaml and RELEASE.md, a /healthz endpoint, and release checks in CI. Replaces the old build workflow and zip packaging.

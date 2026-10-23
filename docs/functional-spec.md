@@ -1,6 +1,6 @@
 # Classifieds Tracker: Functional Specification v0.3
 
-Version: v0.3.1 · Date: 2026-10-22 · Status: current-state spec (edited in place each release). Last change: standard release flow, deploy files, /healthz.
+Version: v0.3.2 · Date: 2026-10-22 · Status: current-state spec (edited in place each release). Last change: Update now/later field in RELEASE.md.
 
 Status key used in the requirement tables: **Done** built and tested · **Partial** built with a gap noted · **Planned** not in v0.3.
 
@@ -179,6 +179,7 @@ Session cookie required unless noted. The ingest token goes in the `X-Ingest-Tok
 - **Image only:** `mybadreligon/marketplace-browser`, built for linux/amd64 by the tag workflow. No local-build compose file; the compose file pins the exact release tag.
 - **Runtime:** container user 1000:100, `init: true`, data in `/data` (bind folder `<FAST_STORAGE>/marketplace-browser`), health check `GET /healthz` on `$PORT`. Variables: `PORT_HOST`, `APP_PASSWORD`, `INGEST_TOKEN`, `MIN_POLL_MINUTES`, `FAST_STORAGE`, optional `TZ` (default America/Toronto).
 - **Releases:** a tag `vX.Y.Z` runs `release.yml`: validates `VERSION`, tag and the CHANGELOG entry (Short at most 50 and Long at most 250 characters), pushes image tags `X.Y.Z`, `X.Y` and `latest`, then creates the GitHub release. Every release also updates `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md`. `test.yml` runs the tests on pushes and pull requests.
+- **Update timing:** `deploy/RELEASE.md` has a fixed line `Update: now` or `Update: later`. `now` only when the owner's build message was "build, push and update"; Claude Code deploys those right away and deploys `later` releases in its regular daily update run.
 - **Versioning:** `MAJOR.MINOR.PATCH`; patch for fixes, minor for features, major only on explicit decision. Requests are logged in `docs/pending-changes.md` and built on request.
 
 ## 10. Non-functional requirements and security

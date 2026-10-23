@@ -45,8 +45,11 @@ else:
         errors.append("deploy/compose.yaml uses :latest")
     if re.search(r"^\s*build:", compose, re.M):
         errors.append("deploy/compose.yaml has a build: section")
-    if f"# Release v{version}" not in read("deploy/RELEASE.md"):
+    release_md = read("deploy/RELEASE.md")
+    if f"# Release v{version}" not in release_md:
         errors.append(f"deploy/RELEASE.md is not for v{version}")
+    if not re.search(r"^Update: (now|later)$", release_md, re.M):
+        errors.append("deploy/RELEASE.md needs a line exactly 'Update: now' or 'Update: later'")
 
 print("release check: " + ("FAILED\n  " + "\n  ".join(errors) if errors else f"OK (v{version})"))
 sys.exit(1 if errors else 0)
