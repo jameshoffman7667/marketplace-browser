@@ -36,7 +36,17 @@ DATA_DIR = os.environ.get("DATA_DIR", "/data")
 PORT = int(os.environ.get("PORT", "3501"))
 MIN_POLL_MINUTES = float(os.environ.get("MIN_POLL_MINUTES", "5"))
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-VERSION = os.environ.get("APP_VERSION", "0.3.0")
+def _read_version():
+    here = os.path.dirname(os.path.abspath(__file__))
+    for p in (os.path.join(here, "..", "VERSION"), os.path.join(here, "VERSION")):
+        try:
+            return open(p).read().strip()
+        except OSError:
+            pass
+    return "0.0.0"
+
+
+VERSION = os.environ.get("APP_VERSION") or _read_version()
 APIFY_BASE = os.environ.get("APIFY_BASE", "https://api.apify.com").rstrip("/")
 UA = f"ClassifiedsTracker/{VERSION} (+self-hosted personal use)"
 # Used by the browser extension (ingest and tasks are token-authenticated; health only reports the version).
@@ -913,6 +923,12 @@ def r_health(h, body, params):
     return {"ok": True, "version": VERSION}
 
 
+@route("GET", "/healthz", auth="none")
+def r_healthz(h, body, params):
+    q("SELECT 1")  # database reachable
+    return {"status": "ok", "version": VERSION}
+
+
 @route("POST", "/api/login", auth="none")
 def r_login(h, body, params):
     if not hmac.compare_digest(str(body.get("password", "")), app_password()):
@@ -1208,7 +1224,7 @@ class Handler(BaseHTTPRequestHandler):
         self.extra_headers = []
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
-        if method == "GET" and not path.startswith("/api/"):
+        if method == "GET" and not path.startswith("/api/") and path != "/healthz":
             return self.static(path)
         params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
         try:

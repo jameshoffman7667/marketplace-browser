@@ -116,6 +116,8 @@ def main():
 
         s, hz = call("GET", "/api/health")
         check("health reports version", hz.get("version") == open(os.path.join(ROOT, "VERSION")).read().strip(), str(hz))
+        s, hz2 = call("GET", "/healthz")
+        check("/healthz reports status and version", s == 200 and hz2.get("status") == "ok" and hz2.get("version") == hz.get("version"), str(hz2))
         req = urllib.request.Request(BASE + "/api/ingest", method="OPTIONS", headers={
             "Origin": "chrome-extension://abc", "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "content-type,x-ingest-token"})

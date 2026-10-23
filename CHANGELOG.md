@@ -1,6 +1,27 @@
 # Changelog
 
-Each iteration is labelled `vMAJOR.MINOR` (v0.1, v0.2, ...). The label maps to the internal version in `VERSION`, the Docker tag and the extension manifest (v0.1 is 0.1.0, v0.2 is 0.2.0, v0.3 is 0.3.0). Newest first. Every release also has a functional spec (`docs/functional-spec-vX.Y.md`) and a commit message (`docs/releases/vX.Y-commit-message.txt`).
+Versions are `MAJOR.MINOR.PATCH`; the git tag is `vMAJOR.MINOR.PATCH` and equals `VERSION`, the extension manifest and the Docker tag. Newest first. Each entry has a Short (50 characters or fewer) and a Long (250 or fewer) comment, used for the commit and the GitHub release. Entries v0.1, v0.2 and v0.3 predate this format and were never tagged or published as images.
+
+## v0.3.1 - 2026-10-22
+**Short:** Adopt standard release flow and deploy files
+**Long:** Tag workflow builds mybadreligon/marketplace-browser X.Y.Z, X.Y and latest, then creates the release. Adds deploy/compose.yaml and RELEASE.md, a /healthz endpoint, and release checks in CI. Replaces the old build workflow and zip packaging.
+
+### Changed
+- Releases: pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml`, which validates version and changelog, builds `linux/amd64`, pushes `mybadreligon/marketplace-browser:X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release as its last step. Replaces `docker.yml` (it built on every push and used the Docker Hub username from secrets).
+- Tests now run in `.github/workflows/test.yml` on pushes and pull requests to `main`, with `tests/release_check.py` verifying release files, version agreement and changelog lengths. No image is built there.
+- `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md` replace `stack/`. The compose file pins the exact image tag, uses `PORT_HOST` for both host and container port, and stores data in a bind folder (`<FAST_STORAGE>/marketplace-browser`) instead of a named volume. Breaking for existing stacks: image name, container name, `TRACKER_PORT`/`TRACKER_IMAGE` variables and data location all change; see `deploy/RELEASE.md`.
+- The image runs as user 1000:100 and reads its version from the `VERSION` file (no build argument).
+- The functional spec is now the single current-state file `docs/functional-spec.md`; earlier versioned specs stay as history.
+
+### Added
+- `GET /healthz` returns `{status, version}` after checking the database; the image and compose health checks use it and follow `PORT`.
+- `docs/pending-changes.md`.
+
+### Removed
+- `tools/package.py` and the zip delivery, `stack/`, `.github/workflows/docker.yml`. The extension zip is no longer attached to GitHub releases.
+
+### Known limitations
+- Docker image not built locally; the tag workflow is the first build. Not a PWA yet and no public hostname (P-2).
 
 ## v0.3 - 2026-10-07
 

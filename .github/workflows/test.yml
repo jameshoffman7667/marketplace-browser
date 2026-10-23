@@ -1,0 +1,22 @@
+name: test
+# Tests only. No image is built or pushed here; images come from tags (release.yml).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Release files and version consistency
+        run: python3 tests/release_check.py
+      - name: Smoke test (server, alerts, ingest, location)
+        run: python3 tests/smoke.py
+      - name: Apify source test (fake Apify API)
+        run: python3 tests/apify_test.py

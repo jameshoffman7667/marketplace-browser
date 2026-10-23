@@ -1,0 +1,33 @@
+# Marketplace Browser (classifieds tracker): reference compose for the home server (Dockhand / docker compose).
+# Container port = host port; PORT_HOST comes from the port register.
+name: marketplace-browser
+
+services:
+  marketplace-browser:
+    image: mybadreligon/marketplace-browser:0.3.1
+    container_name: marketplace-browser
+    restart: unless-stopped
+    init: true
+    user: "1000:100"                      # image runs as this fixed user; /data on the host must be owned by 1000:100
+    environment:
+      - TZ=America/Toronto
+      - PORT=${PORT_HOST:?assign from port register}
+      - APP_PASSWORD=${APP_PASSWORD:?set the web UI password}
+      - INGEST_TOKEN=${INGEST_TOKEN:-}    # optional; generated and shown in Settings when empty
+      - MIN_POLL_MINUTES=${MIN_POLL_MINUTES:-5}
+    ports:
+      - "${PORT_HOST}:${PORT_HOST}"       # container port = host port
+    volumes:
+      - ${FAST_STORAGE:-/srv/dev-disk-by-uuid-758425e9-f9ca-4fbc-ad81-eaea80fdfb73/appdata-ssd}/marketplace-browser:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:$${PORT}/healthz',timeout=4)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

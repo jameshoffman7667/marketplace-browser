@@ -1,6 +1,6 @@
 # Classifieds Tracker: Functional Specification v0.3
 
-Version: v0.3 (internal 0.3.0) · Date: 2026-10-07 · Status: describes what v0.3 does. Changes from v0.2: optional Apify source (hosted Facebook Marketplace scraper) that follows the global location, with its own interval and daily run cap.
+Version: v0.3.1 · Date: 2026-10-22 · Status: current-state spec (edited in place each release). Last change: standard release flow, deploy files, /healthz.
 
 Status key used in the requirement tables: **Done** built and tested · **Partial** built with a gap noted · **Planned** not in v0.3.
 
@@ -175,11 +175,11 @@ Session cookie required unless noted. The ingest token goes in the `X-Ingest-Tok
 
 ## 9. Deployment and release
 
-- **Port:** the server listens on 3501 by default (`PORT`); the stack publishes `${TRACKER_PORT:-3501}:3501`. Breaking change from v0.1 (8080).
-- **Image only:** there is no local-build compose file; the Dockerfile exists for the GitHub Action. Run the Docker Hub image.
-- **Dockhand:** `stack/compose.yml` pulls `${TRACKER_IMAGE}`, requires `APP_PASSWORD`, stores data in a named volume. Variables: `TRACKER_IMAGE`, `APP_PASSWORD`, `INGEST_TOKEN`, `TRACKER_PORT`, `TZ`, `MIN_POLL_MINUTES`.
-- **GitHub Action:** tests, then builds multi-arch and pushes to Docker Hub (`edge` from `main`; `X.Y.Z`, `X.Y` and `latest` from a `vX.Y.Z` tag) and attaches the extension zip to the GitHub release. Needs secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. Fails if `VERSION`, the extension manifest, the changelog or the versioned spec file disagree.
-- **Versioning:** each iteration is labelled `vMAJOR.MINOR` (v0.3, v0.3, ...); the delivery zip, the spec file and the commit message file carry the label.
+- **Port:** the server listens on `PORT` (default 3501). On the home server `deploy/compose.yaml` publishes `${PORT_HOST}:${PORT_HOST}` and sets `PORT` to the same number.
+- **Image only:** `mybadreligon/marketplace-browser`, built for linux/amd64 by the tag workflow. No local-build compose file; the compose file pins the exact release tag.
+- **Runtime:** container user 1000:100, `init: true`, data in `/data` (bind folder `<FAST_STORAGE>/marketplace-browser`), health check `GET /healthz` on `$PORT`. Variables: `PORT_HOST`, `APP_PASSWORD`, `INGEST_TOKEN`, `MIN_POLL_MINUTES`, `FAST_STORAGE`, optional `TZ` (default America/Toronto).
+- **Releases:** a tag `vX.Y.Z` runs `release.yml`: validates `VERSION`, tag and the CHANGELOG entry (Short at most 50 and Long at most 250 characters), pushes image tags `X.Y.Z`, `X.Y` and `latest`, then creates the GitHub release. Every release also updates `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md`. `test.yml` runs the tests on pushes and pull requests.
+- **Versioning:** `MAJOR.MINOR.PATCH`; patch for fixes, minor for features, major only on explicit decision. Requests are logged in `docs/pending-changes.md` and built on request.
 
 ## 10. Non-functional requirements and security
 

@@ -1,4 +1,4 @@
-# Classifieds Tracker v0.3
+# Marketplace Browser (classifieds tracker)
 
 Self-hosted server with a web UI. Watch several classifieds sites from one place, keep saved searches, and get alerts when new listings match. **One global location and radius applies to every saved search**: change it once in Settings and all searches follow.
 
@@ -8,49 +8,39 @@ The server is Python standard library only (no third-party packages) with a SQLi
 .
 ├── app/                 server + web UI
 ├── extension/           Chrome/Edge companion extension (Manifest V3)
-├── stack/compose.yml    Dockhand stack (image from Docker Hub)
-├── stack/.env.example   variables for the stack
-├── .github/workflows/   test, build, push to Docker Hub, package extension
-├── docs/                versioned functional spec, per-release commit messages, research notes
+├── deploy/              compose.yaml, .env.example and RELEASE.md for the home server (image from Docker Hub)
+├── .github/workflows/   release.yml (tag: build, push, GitHub release) and test.yml
+├── docs/                functional spec, pending changes log, research notes
 ├── tests/               server smoke test, Apify source test, real-Chromium extension test
-├── tools/package.py     builds the versioned delivery zip
 ├── CHANGELOG.md         what changed in each version
-└── VERSION              single source of the version (0.3.0)
+└── VERSION              single source of the version (0.3.1)
 ```
 
-## 1. Publish the image (GitHub Action)
+## 1. Release flow (GitHub Action)
 
-1. Create a GitHub repo and push this folder to `main`.
-2. Create a Docker Hub **access token** (Account settings, Security, Read & Write).
-3. In the repo: Settings, Secrets and variables, Actions, add secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
-4. Push to `main`: the workflow runs the tests, then builds `linux/amd64` + `linux/arm64` and pushes `yourname/classifieds-tracker:edge`.
-5. Release: set `VERSION` and `extension/manifest.json` to the new version (the workflow fails if they differ), then
-   ```bash
-   git tag v0.3.0 && git push origin v0.3.0
-   ```
-   This pushes `0.3.0`, `0.3` and `latest`, and attaches `classifieds-tracker-extension-0.3.0.zip` to a GitHub release.
+Images are built only from tags. Pushing a tag `vMAJOR.MINOR.PATCH` (for example `v0.3.1`) runs `.github/workflows/release.yml`, which checks that `VERSION` equals the tag and that `CHANGELOG.md` has an entry for it (Short 50 characters or fewer, Long 250 or fewer), builds `linux/amd64`, pushes `mybadreligon/marketplace-browser:X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release as its last step. Plain pushes to `main` only run the tests (`test.yml`).
 
-Pull requests run the tests and a build but never push or need secrets. There is no local-build compose file: the only way to run the server is the Docker Hub image (the Dockerfile exists for CI to build).
+1. The repo needs the Actions secrets `DOCKERHUB_USERNAME` (`mybadreligon`) and `DOCKERHUB_TOKEN`.
+2. Each release updates `VERSION` and `extension/manifest.json` (they must match), `CHANGELOG.md`, `docs/functional-spec.md`, and `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md` (`python3 tests/release_check.py` verifies this).
+3. Tag and push: `git tag -a vX.Y.Z -m "<short>" -m "<long>" && git push origin vX.Y.Z`.
 
-## 2. Deploy with Dockhand
+Versions: patch for fixes and small tweaks, minor for new features, major only on explicit decision. Requests are logged in `docs/pending-changes.md` and built on request. If a workflow step fails, fix it with a new patch release instead of moving the tag.
 
-Dockhand stacks can be pasted compose YAML or a Git repo, and support `${VAR}` substitution. Use `stack/compose.yml`, which pulls the image (no `build:`) and keeps data in a named volume, so there are no host-path or permission issues.
+## 2. Deploy on the home server
 
-1. In Dockhand create a stack named `classifieds-tracker`, either by pasting `stack/compose.yml` or by pointing a Git stack at your repo and the file `stack/compose.yml`.
-2. Set the stack's environment variables (see `stack/.env.example`):
-   | Variable | Required | Meaning |
-   | --- | --- | --- |
-   | `TRACKER_IMAGE` | yes | e.g. `yourname/classifieds-tracker:0.3.0` (pin a version for repeatable deploys) |
-   | `APP_PASSWORD` | yes | web UI password |
-   | `INGEST_TOKEN` | no | fixed extension token; generated and shown in Settings if empty |
-   | `TRACKER_PORT` | no | host port, default 3501 |
-   | `TZ` | no | quiet hours and digests, default America/Toronto |
-   | `MIN_POLL_MINUTES` | no | lowest allowed check interval, default 5 |
-3. Deploy, then open `http://<host>:3501`.
+Use `deploy/compose.yaml`: it pulls the pinned image (no `build:`), runs as user 1000:100 and keeps the SQLite database in `<FAST_STORAGE>/marketplace-browser`. Details for each release (port, data folder, checks, rollback) are in `deploy/RELEASE.md`.
 
-Put it behind HTTPS (reverse proxy, Tailscale or a VPN) before exposing it beyond your home network. Back up by backing up the `tracker-data` volume. To update, change the tag and redeploy.
+Variables (see `deploy/.env.example`):
 
-If you would rather bind-mount a host folder, the container runs as uid 10001, so the folder must be writable by it (or add `user:` to the service).
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `PORT_HOST` | yes | host and container port (same number), from the port register |
+| `APP_PASSWORD` | yes | web UI password |
+| `INGEST_TOKEN` | no | fixed extension token; generated and shown in Settings if empty |
+| `MIN_POLL_MINUTES` | no | lowest allowed check interval, default 5 |
+| `FAST_STORAGE` | no | data root; default is the server's SSD appdata path |
+
+Open `http://<host>:<PORT_HOST>`. Put it behind HTTPS (reverse proxy, Tailscale or a VPN) before exposing it beyond your home network. Back up by stopping the container and copying the data folder (`tracker.db`, `-wal` and `-shm` together). To update, change the pinned tag and redeploy.
 
 ## 3. First-time setup (web UI)
 
@@ -85,9 +75,9 @@ Limits: without "Fetch listing details" results carry no coordinates, so the ser
 
 Chrome or Edge (version 116+). Not published to a store: load it unpacked.
 
-1. Unzip `classifieds-tracker-extension-0.3.0.zip` (or use the `extension/` folder).
+1. Unzip `the `extension/` folder from the repo` (or use the `extension/` folder).
 2. Open `chrome://extensions`, enable Developer mode, "Load unpacked", pick the folder.
-3. Open the extension's **Options**: enter the server URL (e.g. `http://192.168.1.20:3501`) and the ingest token from the tracker's Settings. "Test connection" should report the version.
+3. Open the extension's **Options**: enter the server URL (e.g. `http://192.168.1.20:<PORT_HOST>`) and the ingest token from the tracker's Settings. "Test connection" should report the version.
 4. In the tracker, add a source of type **Browser extension / API** named `Facebook Marketplace` and press "Use Facebook Marketplace preset" (fills the search URL template from your global location). Do the same for `Kijiji` if you want Kijiji searches run automatically (you must supply its URL template; the default is empty).
 5. Use it:
    - **Run all searches now**: opens each saved search's page one at a time in a background tab, scrolls, reads the listings, closes the tab and posts the results.
@@ -108,7 +98,7 @@ The first batch for a search is baseline and never alerts; later batches alert o
 ## 6. API (for your own scripts)
 
 ```bash
-curl -X POST http://localhost:3501/api/ingest \
+curl -X POST http://localhost:<PORT_HOST>/api/ingest \
   -H "X-Ingest-Token: <token>" -H "Content-Type: application/json" \
   -d '{"source":"My source","search_id":1,
        "listings":[{"id":"123","url":"https://...","title":"Standing desk","price":"$90",
@@ -124,25 +114,13 @@ The global location is stored once. Feed and extension URL templates are rebuilt
 ## 8. Tests
 
 ```bash
+python3 tests/release_check.py    # release files, version agreement, changelog lengths
 python3 tests/smoke.py            # server: login, global location, baselining, alerts, ingest, CORS, email parsing
 python3 tests/apify_test.py       # Apify source against a fake Apify API
 python3 tests/e2e_extension.py    # loads the extension in Chromium against fake Facebook/Kijiji pages
 ```
 
 The second needs Python Playwright and Chromium (`CHROMIUM_PATH` to point at a binary). CI runs the first.
-
-## Versioning and releases
-
-Each iteration is labelled `vMAJOR.MINOR` (v0.1, v0.2, ...); v0.3 is `0.3.0` in `VERSION`, the Docker tag and the extension manifest. A release consists of:
-
-| File | Purpose |
-| --- | --- |
-| `classifieds-tracker-vX.Y.zip` | the repo contents at the zip root, ready to extract and upload to GitHub |
-| `docs/functional-spec-vX.Y.md` | functional spec for that version |
-| `docs/releases/vX.Y-commit-message.txt` | short change comment to use as the commit message |
-| `CHANGELOG.md` | one entry per version, newest first |
-
-`python3 tools/package.py` builds the zip and refuses to if `VERSION`, the extension manifest, the changelog entry or the versioned files disagree; CI runs the same checks. To publish: extract the zip over your repo, commit with the message from the commit-message file, push, then tag `vX.Y.0`. Older versioned spec and commit-message files stay in the repo as history.
 
 ## Third-party Facebook scrapers
 

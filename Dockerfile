@@ -1,30 +1,26 @@
 FROM python:3.12-slim
 
-ARG VERSION=0.3.0
-ARG VCS_REF=unknown
-
-LABEL org.opencontainers.image.title="Classifieds Tracker" \
+LABEL org.opencontainers.image.title="Marketplace Browser" \
       org.opencontainers.image.description="Self-hosted classifieds watcher with saved searches, a global location and alerts" \
-      org.opencontainers.image.version=$VERSION \
-      org.opencontainers.image.revision=$VCS_REF
+      org.opencontainers.image.source="https://github.com/jameshoffman7667/marketplace-browser"
 
 ENV PYTHONUNBUFFERED=1 \
     DATA_DIR=/data \
-    PORT=3501 \
-    APP_VERSION=$VERSION
+    PORT=3501
 
-# /data is created owned by the app user so a fresh named volume inherits that ownership.
-RUN useradd --system --create-home --uid 10001 tracker \
- && mkdir /data && chown tracker /data
+# Fixed non-root user 1000:100 (the server's PUID/PGID). /data is created owned by it; a bind-mounted
+# host folder must be owned by 1000:100 too. The version comes from the VERSION file, not from a build arg.
+RUN mkdir /data && chown 1000:100 /data
 
 WORKDIR /srv
+COPY VERSION /srv/VERSION
 COPY app/ /srv/app/
 
-USER tracker
+USER 1000:100
 VOLUME /data
 EXPOSE 3501
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD python -c "import urllib.request,os;urllib.request.urlopen('http://127.0.0.1:%s/api/health'%os.environ.get('PORT','3501'),timeout=4)"
+  CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:${PORT}/healthz',timeout=4)"
 
 CMD ["python", "/srv/app/server.py"]
