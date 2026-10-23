@@ -1,24 +1,34 @@
 name: release
+# Release = commit and push main with a new version in VERSION (no tag push needed).
+# The job builds and pushes the image, then `gh release create --target $GITHUB_SHA` creates the tag and release.
+# The v*.*.* tag trigger is a manual fallback only; the guard below stops both paths releasing the same version.
 on:
   push:
+    branches: [main]
+    paths: [VERSION, package.json]
     tags: ["v*.*.*"]
 
 permissions:
   contents: write
 
+# One release at a time. A second run for the same version then finds the tag/release and stops.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   image:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate release metadata
+      - name: Resolve version and check for a duplicate release
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "Tag version: $VERSION"
-          # version file must match the tag (adjust for the app's language)
           if [ -f package.json ]; then
             FILE_VERSION="$(node -p "require('./package.json').version")"
           elif [ -f VERSION ]; then
@@ -26,7 +36,21 @@ jobs:
           else
             echo "No version file"; exit 1
           fi
-          [ "$FILE_VERSION" = "$VERSION" ] || { echo "Version file ($FILE_VERSION) != tag ($VERSION)"; exit 1; }
+          [[ "$FILE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version '$FILE_VERSION' is not MAJOR.MINOR.PATCH"; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "Manual fallback: tag $GITHUB_REF_NAME"
+            [ "$FILE_VERSION" = "$VERSION" ] || { echo "Version file ($FILE_VERSION) != tag ($VERSION)"; exit 1; }
+          else
+            VERSION="$FILE_VERSION"
+            echo "Release from main: v$VERSION at $GITHUB_SHA"
+            if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+              echo "Tag v$VERSION already exists. Bump VERSION to release again."; exit 1
+            fi
+          fi
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "A GitHub release for v$VERSION already exists. Nothing to do."; exit 1
+          fi
           # changelog must contain this version with Short <= 50 and Long <= 250 chars
           grep -q "^## v$VERSION " CHANGELOG.md || { echo "CHANGELOG.md has no entry for v$VERSION"; exit 1; }
           SHORT="$(awk -v v="## v$VERSION " 'index($0,v)==1{f=1;next} f&&/^\*\*Short:\*\*/{sub(/^\*\*Short:\*\* /,"");print;exit}' CHANGELOG.md)"
@@ -35,6 +59,7 @@ jobs:
           [ "${#LONG}" -gt 0 ] && [ "${#LONG}" -le 250 ] || { echo "Long is ${#LONG} chars (max 250)"; exit 1; }
           echo "SHORT=$SHORT" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "MAJOR_MINOR=${VERSION%.*}" >> "$GITHUB_ENV"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -48,8 +73,8 @@ jobs:
         with:
           images: mybadreligon/${{ github.event.repository.name }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ env.VERSION }}
+            type=raw,value=${{ env.MAJOR_MINOR }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.version=${{ env.VERSION }}
@@ -64,7 +89,5 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME - $SHORT" --notes-file <(awk -v v="## $GITHUB_REF_NAME " 'index($0,v)==1{f=1;next} f&&/^## v/{exit} f' CHANGELOG.md)
+      - name: GitHub release (also creates the tag)
+        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION - $SHORT" --notes-file <(awk -v v="## v$VERSION " 'index($0,v)==1{f=1;next} f&&/^## v/{exit} f' CHANGELOG.md)

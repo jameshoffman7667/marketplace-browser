@@ -1,6 +1,6 @@
 # Classifieds Tracker: Functional Specification v0.3
 
-Version: v0.3.3 · Date: 2026-10-22 · Status: current-state spec (edited in place each release). Last change: /healthz contract and 30 s health start period.
+Version: v0.3.4 · Date: 2026-10-22 · Status: current-state spec (edited in place each release). Last change: release on push to main, no tag push.
 
 Status key used in the requirement tables: **Done** built and tested · **Partial** built with a gap noted · **Planned** not in v0.3.
 
@@ -178,7 +178,7 @@ Session cookie required unless noted. The ingest token goes in the `X-Ingest-Tok
 - **Port:** the server listens on `PORT` (default 3501). On the home server `deploy/compose.yaml` publishes `${PORT_HOST}:${PORT_HOST}` and sets `PORT` to the same number.
 - **Image only:** `mybadreligon/marketplace-browser`, built for linux/amd64 by the tag workflow. No local-build compose file; the compose file pins the exact release tag.
 - **Runtime:** container user 1000:100, `init: true`, data in `/data` (bind folder `<FAST_STORAGE>/marketplace-browser`), health check `GET /healthz` on `$PORT` (no login; returns exactly `{"status":"ok","version":"<image tag>"}`; only checks the local database, never an outside service; 30 s start period in the image and the compose file). Variables: `PORT_HOST`, `APP_PASSWORD`, `INGEST_TOKEN`, `MIN_POLL_MINUTES`, `FAST_STORAGE`, optional `TZ` (default America/Toronto).
-- **Releases:** a tag `vX.Y.Z` runs `release.yml`: validates `VERSION`, tag and the CHANGELOG entry (Short at most 50 and Long at most 250 characters), pushes image tags `X.Y.Z`, `X.Y` and `latest`, then creates the GitHub release. Every release also updates `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md`. `test.yml` runs the tests on pushes and pull requests.
+- **Releases:** a release is a commit pushed to `main` that changes `VERSION`. `release.yml` reads the version, fails if tag `vX.Y.Z` or its GitHub release already exists or the CHANGELOG entry is missing or invalid (Short at most 50, Long at most 250 characters), pushes image tags `X.Y.Z`, `X.Y` and `latest`, then runs `gh release create vX.Y.Z --target $GITHUB_SHA`, which creates the tag. The `v*.*.*` tag trigger is only a manual fallback; both paths share one concurrency group and the same duplicate check. Every release also updates `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md`. `test.yml` runs the tests on pushes and pull requests.
 - **Update timing:** `deploy/RELEASE.md` has a fixed line `Update: now` or `Update: later`. `now` only when the owner's build message was "build, push and update"; Claude Code deploys those right away and deploys `later` releases in its regular daily update run.
 - **Versioning:** `MAJOR.MINOR.PATCH`; patch for fixes, minor for features, major only on explicit decision. Requests are logged in `docs/pending-changes.md` and built on request.
 

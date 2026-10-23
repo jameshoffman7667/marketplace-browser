@@ -13,20 +13,23 @@ The server is Python standard library only (no third-party packages) with a SQLi
 ├── docs/                functional spec, pending changes log, research notes
 ├── tests/               server smoke test, Apify source test, real-Chromium extension test
 ├── CHANGELOG.md         what changed in each version
-└── VERSION              single source of the version (0.3.3)
+└── VERSION              single source of the version (0.3.4)
 ```
 
 ## 1. Release flow (GitHub Action)
 
-Images are built only from tags. Pushing a tag `vMAJOR.MINOR.PATCH` (for example `v0.3.1`) runs `.github/workflows/release.yml`, which checks that `VERSION` equals the tag and that `CHANGELOG.md` has an entry for it (Short 50 characters or fewer, Long 250 or fewer), builds `linux/amd64`, pushes `mybadreligon/marketplace-browser:X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release as its last step. Plain pushes to `main` only run the tests (`test.yml`).
+A release is a commit pushed to `main` that changes `VERSION`. No tag push is needed. `.github/workflows/release.yml` then:
 
-1. The repo needs the Actions secrets `DOCKERHUB_USERNAME` (`mybadreligon`) and `DOCKERHUB_TOKEN`.
-2. Each release updates `VERSION` and `extension/manifest.json` (they must match), `CHANGELOG.md`, `docs/functional-spec.md`, and `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md` (`python3 tests/release_check.py` verifies this).
-3. Tag and push: `git tag -a vX.Y.Z -m "<short>" -m "<long>" && git push origin vX.Y.Z`.
+1. reads the version `X.Y.Z` from `VERSION`;
+2. fails if tag `vX.Y.Z` or its GitHub release already exists, or if `CHANGELOG.md` has no valid entry for it (Short 50 characters or fewer, Long 250 or fewer);
+3. builds `linux/amd64` and pushes `mybadreligon/marketplace-browser:X.Y.Z`, `X.Y` and `latest`;
+4. runs `gh release create vX.Y.Z --target $GITHUB_SHA`, which creates the tag and the GitHub release as its last step, using the workflow's own token.
 
-`deploy/RELEASE.md` carries `Update: now` (deploy right away; only for a "build, push and update" request) or `Update: later` (deployed in the regular daily update run).
+The `v*.*.*` tag trigger still exists, only as a manual fallback; both paths share one concurrency group and the same duplicate check, so one version is never released twice. Pushes to `main` that do not change `VERSION` only run the tests (`test.yml`).
 
-Versions: patch for fixes and small tweaks, minor for new features, major only on explicit decision. Requests are logged in `docs/pending-changes.md` and built on request. If a workflow step fails, fix it with a new patch release instead of moving the tag.
+To release: update `VERSION` and `extension/manifest.json` (they must match), `CHANGELOG.md`, `docs/functional-spec.md`, and `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md`; run `python3 tests/release_check.py`; commit and push `main`. The repo needs the Actions secrets `DOCKERHUB_USERNAME` (`mybadreligon`) and `DOCKERHUB_TOKEN`.
+
+Versions: patch for fixes and small tweaks, minor for new features, major only on explicit decision. `deploy/RELEASE.md` carries `Update: now` (deploy right away; only for a "build, push and update" request) or `Update: later` (deployed in the regular daily update run). Requests are logged in `docs/pending-changes.md` and built on request. If the workflow fails, fix the cause and release the next patch version; do not move tags.
 
 ## 2. Deploy on the home server
 

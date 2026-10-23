@@ -23,3 +23,8 @@ Notes / questions (answered 2026-10-22: Claude Code deploys `later` in its daily
 Requested: 2026-10-22 (James: "answers GET /healthz on $PORT with {status:ok, version: same as the image tag}, no login, no private data, no checks of outside services ... HEALTHCHECK in image and compose with a 30 second start period")
 Type: patch        Status: Built in v0.3.3
 Notes / questions: /healthz already existed from v0.3.1; this release tightens tests and sets the start period to 30 s in both places.
+
+### P-5 - Release on push to main (no tag push)
+Requested: 2026-10-22 (James: "Change the release workflow so it never needs a tag push ... trigger on a push to main that changes the version")
+Type: patch (release process)        Status: Built in v0.3.4
+Notes / questions: version file used is VERSION; the tag trigger stays as a manual fallback with a duplicate guard. The canonical spec in homelab (section 6, 9, 10) still describes the tag-push flow and should be updated to match.

@@ -2,6 +2,18 @@
 
 Versions are `MAJOR.MINOR.PATCH`; the git tag is `vMAJOR.MINOR.PATCH` and equals `VERSION`, the extension manifest and the Docker tag. Newest first. Each entry has a Short (50 characters or fewer) and a Long (250 or fewer) comment, used for the commit and the GitHub release. Entries v0.1, v0.2 and v0.3 predate this format and were never tagged or published as images.
 
+## v0.3.4 - 2026-10-22
+**Short:** Release on push to main, no tag push needed
+**Long:** A push to main that changes VERSION now builds and pushes the image and runs gh release create --target, which creates the tag. The v*.*.* tag trigger stays as a manual fallback, and a duplicate-release guard stops both firing for one version.
+
+### Changed
+- Release = commit and push `main` with a new `VERSION`. `.github/workflows/release.yml` now triggers on pushes to `main` that change `VERSION` (or `package.json`), reads the version, fails if tag `vX.Y.Z` or its GitHub release already exists or the CHANGELOG entry is missing or invalid, pushes `mybadreligon/marketplace-browser:X.Y.Z`, `X.Y` and `latest`, then runs `gh release create vX.Y.Z --target $GITHUB_SHA`, which creates the tag. Uses the workflow's own token (`contents: write`).
+- The `v*.*.*` tag trigger remains only as a manual fallback. Both paths share one concurrency group and the same duplicate check, so one version cannot be released twice.
+- Image tags come from the version read by the job (the semver tag helper needs a tag ref, which a branch push does not have).
+
+### Notes
+- v0.3.1, v0.3.2 and v0.3.3 were never tagged and have no images. v0.3.4 is the first published release and includes their changes.
+
 ## v0.3.3 - 2026-10-22
 **Short:** Lock /healthz contract, 30 s health start period
 **Long:** GET /healthz on $PORT returns only {status: ok, version} with no login and no outside checks; version equals the image tag. Image and compose health checks now use a 30 s start period. Tests and release_check enforce both.

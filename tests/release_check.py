@@ -45,6 +45,11 @@ else:
         errors.append("deploy/compose.yaml uses :latest")
     if re.search(r"^\s*build:", compose, re.M):
         errors.append("deploy/compose.yaml has a build: section")
+    wf = read(".github/workflows/release.yml")
+    for needle, why in (("branches: [main]", "main trigger"), ("paths: [VERSION", "VERSION path filter"),
+                        ('--target "$GITHUB_SHA"', "gh release create --target"), ("group: release", "concurrency group")):
+        if needle not in wf:
+            errors.append(f"release.yml is missing {why} ({needle})")
     dockerfile = read("Dockerfile")
     hc = re.search(r"^HEALTHCHECK .*?(?=^\S*CMD \[|\Z)", dockerfile, re.M | re.S)
     if not hc or "--start-period=30s" not in hc.group(0) or "/healthz" not in hc.group(0) or "${PORT}" not in hc.group(0):
