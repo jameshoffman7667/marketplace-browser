@@ -20,7 +20,7 @@ USER 1000:100
 VOLUME /data
 EXPOSE 3501
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
   CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:${PORT}/healthz',timeout=4)"
 
 CMD ["python", "/srv/app/server.py"]

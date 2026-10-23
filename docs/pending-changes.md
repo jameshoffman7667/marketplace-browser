@@ -18,3 +18,8 @@ Notes / questions: tag workflow for mybadreligon/marketplace-browser X.Y.Z, X.Y 
 Requested: 2026-10-22 (James: "add a fixed field Update: now or Update: later ... Update: now only when I say 'build, push and update' for this release; otherwise Update: later")
 Type: patch (release process)        Status: Built in v0.3.2
 Notes / questions (answered 2026-10-22: Claude Code deploys `later` in its daily update run and `now` right away; release_check enforces the field): every release's RELEASE.md gets one line, `Update: now` only if the build message was "build, push and update", else `Update: later`. v0.3.1 was built without that phrase, so it would read `Update: later`. Should Claude Code deploy only when the field says now (and just push the tag and confirm the image when it says later)? Also add the field to tests/release_check.py so a release cannot omit it?
+
+### P-4 - Lock the /healthz contract and 30 s health start period
+Requested: 2026-10-22 (James: "answers GET /healthz on $PORT with {status:ok, version: same as the image tag}, no login, no private data, no checks of outside services ... HEALTHCHECK in image and compose with a 30 second start period")
+Type: patch        Status: Built in v0.3.3
+Notes / questions: /healthz already existed from v0.3.1; this release tightens tests and sets the start period to 30 s in both places.

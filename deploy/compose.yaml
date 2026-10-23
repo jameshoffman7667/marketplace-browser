@@ -4,7 +4,7 @@ name: marketplace-browser
 
 services:
   marketplace-browser:
-    image: mybadreligon/marketplace-browser:0.3.2
+    image: mybadreligon/marketplace-browser:0.3.3
     container_name: marketplace-browser
     restart: unless-stopped
     init: true
@@ -24,7 +24,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 30s
     stop_grace_period: 15s
     logging:
       driver: json-file

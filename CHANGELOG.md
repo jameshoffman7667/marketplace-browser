@@ -2,6 +2,14 @@
 
 Versions are `MAJOR.MINOR.PATCH`; the git tag is `vMAJOR.MINOR.PATCH` and equals `VERSION`, the extension manifest and the Docker tag. Newest first. Each entry has a Short (50 characters or fewer) and a Long (250 or fewer) comment, used for the commit and the GitHub release. Entries v0.1, v0.2 and v0.3 predate this format and were never tagged or published as images.
 
+## v0.3.3 - 2026-10-22
+**Short:** Lock /healthz contract, 30 s health start period
+**Long:** GET /healthz on $PORT returns only {status: ok, version} with no login and no outside checks; version equals the image tag. Image and compose health checks now use a 30 s start period. Tests and release_check enforce both.
+
+### Changed
+- `GET /healthz` is documented and tested as the health contract: no login, no cookie, response exactly `{"status":"ok","version":"<VERSION>"}`, no private data. It only checks that the local database answers; it calls no outside service.
+- The image `HEALTHCHECK` and the compose healthcheck both use a 30 second start period (was 10 s and 20 s), request `/healthz` on `$PORT`, and `tests/release_check.py` fails a release that drifts from this.
+
 ## v0.3.2 - 2026-10-22
 **Short:** Add Update now/later field to RELEASE.md
 **Long:** RELEASE.md gets a fixed Update field: now only when the build message was "build, push and update", otherwise later. Later releases go out in Claude Code's daily update run, now releases right away. release_check enforces the field.

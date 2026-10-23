@@ -45,6 +45,12 @@ else:
         errors.append("deploy/compose.yaml uses :latest")
     if re.search(r"^\s*build:", compose, re.M):
         errors.append("deploy/compose.yaml has a build: section")
+    dockerfile = read("Dockerfile")
+    hc = re.search(r"^HEALTHCHECK .*?(?=^\S*CMD \[|\Z)", dockerfile, re.M | re.S)
+    if not hc or "--start-period=30s" not in hc.group(0) or "/healthz" not in hc.group(0) or "${PORT}" not in hc.group(0):
+        errors.append("Dockerfile HEALTHCHECK must use --start-period=30s and GET /healthz on ${PORT}")
+    if not re.search(r"^\s*start_period: 30s$", compose, re.M) or "/healthz" not in compose:
+        errors.append("deploy/compose.yaml healthcheck must use start_period: 30s and /healthz")
     release_md = read("deploy/RELEASE.md")
     if f"# Release v{version}" not in release_md:
         errors.append(f"deploy/RELEASE.md is not for v{version}")
