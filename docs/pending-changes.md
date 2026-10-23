@@ -7,6 +7,11 @@ Requested: 2026-10-22 (found while switching to the standard release flow)
 Type: minor        Status: Pending
 Notes / questions: missing against the spec: installable PWA (manifest, icons, wide and narrow screenshots, service worker, offline page, install button), distinct phone and desktop layouts checked at 390/768/1440 and 320 px, clean SIGTERM shutdown, tini or equivalent, fail-fast tests for missing config (APP_PASSWORD is currently required only by compose), Docker build run, a public hostname so it can be installed. Needs a public hostname decision. Ask James which of these to build first.
 
+### P-6 - Correct the existing-deployment facts in deploy/RELEASE.md
+Requested: 2026-10-22 (James, relaying Claude Code's server check: "several of its facts about the current setup are wrong")
+Type: patch (docs)        Status: Pending
+Notes / questions: RELEASE.md says the old stack kept data in the named volume `tracker-data` with image `yourname/classifieds-tracker`. Actual: bind folder `<FAST_STORAGE>/marketplacetracker` (set by DATA_PATH), only `tracker.db` (no -wal/-shm), owned 10001:999; old image `mybadreligon/classifieds-tracker:edge` on port 3501, PORT_HOST already 3501. Also add: the old folder is copied (cp -a) and chowned 1000:100, the old folder stays as rollback; verification command on vm101 is `wget -qO- http://127.0.0.1:<PORT>/healthz` (no curl); add `marketplace-browser` to STOP_LIST in /usr/local/bin/tier1-backup.sh so the SQLite file is not copied while running. Would ship as v0.3.5 with Update: later unless you say "build, push and update".
+
 ## Done
 
 ### P-1 - Switch to the standard release flow
