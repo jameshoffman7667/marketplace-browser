@@ -12,10 +12,10 @@ Requested: 2026-10-22 (James, relaying Claude Code's server check: "several of i
 Type: patch (docs)        Status: Pending
 Notes / questions: RELEASE.md says the old stack kept data in the named volume `tracker-data` with image `yourname/classifieds-tracker`. Actual: bind folder `<FAST_STORAGE>/marketplacetracker` (set by DATA_PATH), only `tracker.db` (no -wal/-shm), owned 10001:999; old image `mybadreligon/classifieds-tracker:edge` on port 3501, PORT_HOST already 3501. Also add: the old folder is copied (cp -a) and chowned 1000:100, the old folder stays as rollback; verification command on vm101 is `wget -qO- http://127.0.0.1:<PORT>/healthz` (no curl); add `marketplace-browser` to STOP_LIST in /usr/local/bin/tier1-backup.sh so the SQLite file is not copied while running. Would ship as v0.3.5 with Update: later unless you say "build, push and update".
 
-### P-7 - Send /healthz as compact JSON
-Requested: 2026-10-23 (James, relaying Claude Code: "/healthz returns {"status": "ok", ...} with a space after the colon; the spec requires compact JSON with no space and the health check greps for "status":"ok"")
+### P-7 - /healthz must be compact JSON, and health checks must require it
+Requested: 2026-10-23 and 2026-10-28 (James: "/healthz currently returns {"status": "ok", "version": "0.3.4"} with a space after each colon and comma. Spec v1.9 requires exactly {"status":"ok","version":"<image tag>"}")
 Type: patch (bug)        Status: Pending
-Notes / questions: the server serialises every response with json.dumps defaults, which put a space after the colon and comma. Fix: send compact separators (",", ":") at least for /healthz, exactly {"status":"ok","version":"X.Y.Z"}; tighten tests/smoke.py to compare the raw body bytes, not parsed JSON. Whole-app compact JSON or /healthz only? Would ship as v0.3.5 together with P-6 if you say "build P-6 and P-7".
+Notes / questions: (1) /healthz must send exactly {"status":"ok","version":"<image tag>"}, no spaces, e.g. json.dumps with separators=(",", ":"). (2) The image HEALTHCHECK and the compose healthcheck must require "status":"ok" in the response body, not just a 200. (3) A test must lock the exact body bytes and that version equals the VERSION file (smoke.py currently compares parsed JSON, which hides the spaces). Cause: every response uses json.dumps defaults. Open question: compact for /healthz only (my suggestion) or every response? Ships as v0.3.5, with P-6 if you say "build P-6 and P-7", Update: later unless you say "build, push and update".
 
 ## Done
 
