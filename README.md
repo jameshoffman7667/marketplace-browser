@@ -13,7 +13,7 @@ The server is Python standard library only (no third-party packages) with a SQLi
 ├── docs/                functional spec, pending changes log, research notes
 ├── tests/               server smoke test, Apify source test, real-Chromium extension test
 ├── CHANGELOG.md         what changed in each version
-└── VERSION              single source of the version (0.3.4)
+└── VERSION              single source of the version (0.3.5)
 ```
 
 ## 1. Release flow (GitHub Action)

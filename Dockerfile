@@ -21,6 +21,6 @@ VOLUME /data
 EXPOSE 3501
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
-  CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:${PORT}/healthz',timeout=4)"
+  CMD python -c "import urllib.request,sys;sys.exit(0 if b'\"status\":\"ok\"' in urllib.request.urlopen('http://127.0.0.1:${PORT}/healthz',timeout=4).read() else 1)"
 
 CMD ["python", "/srv/app/server.py"]

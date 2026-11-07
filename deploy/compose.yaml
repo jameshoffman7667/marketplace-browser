@@ -4,7 +4,7 @@ name: marketplace-browser
 
 services:
   marketplace-browser:
-    image: mybadreligon/marketplace-browser:0.3.4
+    image: mybadreligon/marketplace-browser:0.3.5
     container_name: marketplace-browser
     restart: unless-stopped
     init: true
@@ -20,7 +20,10 @@ services:
     volumes:
       - ${FAST_STORAGE:-/srv/dev-disk-by-uuid-758425e9-f9ca-4fbc-ad81-eaea80fdfb73/appdata-ssd}/marketplace-browser:/data
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:$${PORT}/healthz',timeout=4)\""]
+      test:
+        - CMD-SHELL
+        - |-
+          python -c "import urllib.request,sys;sys.exit(0 if b'\"status\":\"ok\"' in urllib.request.urlopen('http://127.0.0.1:$${PORT}/healthz',timeout=4).read() else 1)"
       interval: 30s
       timeout: 5s
       retries: 3

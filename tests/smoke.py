@@ -3,6 +3,7 @@
 import http.cookiejar
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -116,9 +117,19 @@ def main():
 
         s, hz = call("GET", "/api/health")
         check("health reports version", hz.get("version") == open(os.path.join(ROOT, "VERSION")).read().strip(), str(hz))
-        s, hz2 = call("GET", "/healthz", use_cookie=False)  # no login, no cookie
-        check("/healthz is exactly {status: ok, version: <VERSION file>} without login",
-              s == 200 and hz2 == {"status": "ok", "version": open(os.path.join(ROOT, "VERSION")).read().strip()}, str(hz2))
+        want = '{"status":"ok","version":"%s"}' % open(os.path.join(ROOT, "VERSION")).read().strip()
+        with urllib.request.urlopen(BASE + "/healthz", timeout=10) as r:  # no login, no cookie
+            raw = r.read().decode()
+        check("/healthz body is exactly compact JSON with the VERSION file's version, no login", raw == want, repr(raw))
+        # run the real health check commands (image HEALTHCHECK and compose) against this server
+        df = open(os.path.join(ROOT, "Dockerfile")).read()
+        img_cmd = re.search(r"^HEALTHCHECK[^\n]*\\\n\s*CMD (.*)$", df, re.M).group(1)
+        cp = open(os.path.join(ROOT, "deploy", "compose.yaml")).read()
+        comp_cmd = re.search(r"- CMD-SHELL\n\s*- \|-\n\s*(python .*)$", cp, re.M).group(1).replace("$${", "${")
+        for label, cmd in (("image HEALTHCHECK", img_cmd), ("compose healthcheck", comp_cmd)):
+            ok = subprocess.run(["sh", "-c", cmd], env=dict(os.environ, PORT=str(APP_PORT)), capture_output=True).returncode
+            bad = subprocess.run(["sh", "-c", cmd], env=dict(os.environ, PORT="1"), capture_output=True).returncode
+            check(label + " passes against /healthz and fails when nothing answers", ok == 0 and bad != 0, f"ok={ok} bad={bad}")
         req = urllib.request.Request(BASE + "/api/ingest", method="OPTIONS", headers={
             "Origin": "chrome-extension://abc", "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "content-type,x-ingest-token"})

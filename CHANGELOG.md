@@ -2,6 +2,18 @@
 
 Versions are `MAJOR.MINOR.PATCH`; the git tag is `vMAJOR.MINOR.PATCH` and equals `VERSION`, the extension manifest and the Docker tag. Newest first. Each entry has a Short (50 characters or fewer) and a Long (250 or fewer) comment, used for the commit and the GitHub release. Entries v0.1, v0.2 and v0.3 predate this format and were never tagged or published as images.
 
+## v0.3.5 - 2026-11-07
+**Short:** Compact /healthz JSON; fix deployment notes
+**Long:** /healthz now sends exactly {"status":"ok","version":"X.Y.Z"} with no spaces. Image and compose health checks require "status":"ok" in the body, and tests lock the exact bytes. RELEASE.md now describes the real existing deployment.
+
+### Fixed
+- `GET /healthz` returned `{"status": "ok", "version": "..."}` with spaces. It now sends exactly `{"status":"ok","version":"X.Y.Z"}` (compact, built with `separators=(",", ":")`), no login, no outside checks. Only this endpoint changed; every other response is formatted as before.
+
+### Changed
+- The image `HEALTHCHECK` and the compose healthcheck now fail unless the response body contains `"status":"ok"`, not just any HTTP 200.
+- `tests/smoke.py` compares the raw `/healthz` bytes to the exact expected body (version read from the `VERSION` file) and runs the real image and compose health check commands against a live server, including a failing case. `tests/release_check.py` fails if either health check stops requiring `"status":"ok"`.
+- `deploy/RELEASE.md` describes the real existing deployment: data in the bind folder `<FAST_STORAGE>/marketplacetracker` (only `tracker.db`, owner 10001:999), old image `mybadreligon/classifieds-tracker:edge` on port 3501, copy with `cp -a` then `chown -R 1000:100` with the old folder kept as rollback, `wget` as the check tool on vm101, and the Tier 1 backup `STOP_LIST` entry.
+
 ## v0.3.4 - 2026-10-22
 **Short:** Release on push to main, no tag push needed
 **Long:** A push to main that changes VERSION now builds and pushes the image and runs gh release create --target, which creates the tag. The v*.*.* tag trigger stays as a manual fallback, and a duplicate-release guard stops both firing for one version.

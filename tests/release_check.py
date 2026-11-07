@@ -54,6 +54,8 @@ else:
     hc = re.search(r"^HEALTHCHECK .*?(?=^\S*CMD \[|\Z)", dockerfile, re.M | re.S)
     if not hc or "--start-period=30s" not in hc.group(0) or "/healthz" not in hc.group(0) or "${PORT}" not in hc.group(0):
         errors.append("Dockerfile HEALTHCHECK must use --start-period=30s and GET /healthz on ${PORT}")
+    if '\\"status\\":\\"ok\\"' not in dockerfile or '\\"status\\":\\"ok\\"' not in compose:
+        errors.append('image HEALTHCHECK and compose healthcheck must require "status":"ok" in the response body')
     if not re.search(r"^\s*start_period: 30s$", compose, re.M) or "/healthz" not in compose:
         errors.append("deploy/compose.yaml healthcheck must use start_period: 30s and /healthz")
     release_md = read("deploy/RELEASE.md")

@@ -926,7 +926,8 @@ def r_health(h, body, params):
 @route("GET", "/healthz", auth="none")
 def r_healthz(h, body, params):
     q("SELECT 1")  # database reachable
-    return {"status": "ok", "version": VERSION}
+    # Exact compact body, no spaces: {"status":"ok","version":"X.Y.Z"} (health checks match "status":"ok")
+    return json.dumps({"status": "ok", "version": VERSION}, separators=(",", ":")).encode()
 
 
 @route("POST", "/api/login", auth="none")
