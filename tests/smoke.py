@@ -149,7 +149,7 @@ def main():
         s, _ = call("POST", "/api/login", {"password": "pw123"})
         check("login works", s == 200)
         with urllib.request.urlopen(BASE + "/") as r:
-            check("web UI served", b"Classifieds Tracker" in r.read())
+            check("web UI served", b"Marketplace Browser" in r.read())
 
         # Global location: Toronto, 50 km
         s, st = call("PUT", "/api/settings", {"location_label": "Toronto, ON", "lat": "43.6532", "lon": "-79.3832",

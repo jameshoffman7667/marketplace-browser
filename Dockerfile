@@ -6,7 +6,7 @@ LABEL org.opencontainers.image.title="Marketplace Browser" \
 
 ENV PYTHONUNBUFFERED=1 \
     DATA_DIR=/data \
-    PORT=3501
+    PORT=8045
 
 # Fixed non-root user 1000:100 (the server's PUID/PGID). /data is created owned by it; a bind-mounted
 # host folder must be owned by 1000:100 too. The version comes from the VERSION file, not from a build arg.
@@ -18,7 +18,7 @@ COPY app/ /srv/app/
 
 USER 1000:100
 VOLUME /data
-EXPOSE 3501
+EXPOSE 8045
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
   CMD python -c "import urllib.request,sys;sys.exit(0 if b'\"status\":\"ok\"' in urllib.request.urlopen('http://127.0.0.1:${PORT}/healthz',timeout=4).read() else 1)"

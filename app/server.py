@@ -15,6 +15,7 @@ import math
 import os
 import re
 import secrets
+import signal
 import smtplib
 import sqlite3
 import sys
@@ -33,7 +34,7 @@ from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
-PORT = int(os.environ.get("PORT", "3501"))
+PORT = int(os.environ.get("PORT", "8045"))
 MIN_POLL_MINUTES = float(os.environ.get("MIN_POLL_MINUTES", "5"))
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 def _read_version():
@@ -58,6 +59,9 @@ _lock = threading.RLock()
 _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 _conn.row_factory = sqlite3.Row
 _force_run = threading.Event()
+STOP = threading.Event()
+_active = 0
+_active_lock = threading.Lock()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
@@ -480,14 +484,24 @@ def apify_usage(source_id):
     return {"runs_24h": r["runs"], "items_24h": r["items"]}
 
 
-def apify_call(cfg, start_url):
+def apify_reserve_run(source, cfg):
+    """Count one paid run against the rolling 24 h cap (also used by the Test action)."""
+    cap = int(cfg.get("daily_cap") or 24)
+    if apify_usage(source["id"])["runs_24h"] >= cap:
+        raise ValueError(f"Daily run cap reached ({cap} runs per 24 h). Raise it in the source settings.")
+    ts = now()
+    ex("INSERT INTO apify_usage(source_id, ts, items) VALUES(?,?,0)", (source["id"], ts))
+    return ts
+
+
+def apify_call(cfg, start_url, limit=None):
     actor = urllib.parse.quote((cfg.get("actor") or APIFY_ACTOR).strip().replace("/", "~"), safe="~")
     params = {"timeout": "280"}
     if cfg.get("max_charge_usd"):
         params["maxTotalChargeUsd"] = str(cfg["max_charge_usd"])
     endpoint = f"{APIFY_BASE}/v2/acts/{actor}/run-sync-get-dataset-items?" + urllib.parse.urlencode(params)
     payload = {"startUrls": [{"url": start_url}],
-               "resultsLimit": int(cfg.get("results_limit") or 30),
+               "resultsLimit": int(limit or cfg.get("results_limit") or 30),
                "includeListingDetails": bool(cfg.get("details"))}
     req = urllib.request.Request(endpoint, data=json.dumps(payload).encode(), method="POST", headers={
         "Authorization": "Bearer " + cfg["token"], "Content-Type": "application/json", "User-Agent": UA})
@@ -507,21 +521,40 @@ def apify_call(cfg, start_url):
     return data
 
 
+def test_apify_source(source):
+    """One small run (3 results) for the first active search that uses this source.
+    Nothing is stored and nothing alerts; it counts toward the daily cap."""
+    cfg = json.loads(source["config"] or "{}")
+    if not cfg.get("token"):
+        raise ApiError(400, "Apify source has no API token")
+    settings = get_settings()
+    s = next((x for x in active_searches() if search_covers(x, source["id"])), None)
+    if not s:
+        raise ApiError(400, "Create an active saved search that uses this source first")
+    url = render_url((cfg.get("url_template") or APIFY_FB_TEMPLATE).strip(), s, settings)
+    try:
+        ts = apify_reserve_run(source, cfg)
+        raw = apify_call(cfg, url, limit=3)
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    ex("UPDATE apify_usage SET items=? WHERE source_id=? AND ts=?", (len(raw), source["id"], ts))
+    mapped = [x for x in (apify_to_listing(i) for i in raw) if x]
+    first = raw[0] if raw and isinstance(raw[0], dict) else {}
+    return {"search": s["name"], "url": url, "returned": len(raw), "usable": len(mapped), "listings": mapped[:3],
+            "raw_keys": sorted(first.keys()), "first_raw": json.dumps(first, indent=1, default=str)[:6000]}
+
+
 def run_apify_source(source):
     cfg = json.loads(source["config"] or "{}")
     if not cfg.get("token"):
         raise ValueError("Apify source has no API token")
     template = (cfg.get("url_template") or APIFY_FB_TEMPLATE).strip()
-    cap = int(cfg.get("daily_cap") or 24)
     settings = get_settings()
     total = 0
     for s in active_searches():
         if not search_covers(s, source["id"]):
             continue
-        if apify_usage(source["id"])["runs_24h"] >= cap:
-            raise ValueError(f"Daily run cap reached ({cap} runs per 24 h). Raise it in the source settings.")
-        ex("INSERT INTO apify_usage(source_id, ts, items) VALUES(?,?,0)", (source["id"], now()))
-        ts = q("SELECT MAX(ts) AS t FROM apify_usage WHERE source_id=?", (source["id"],))[0]["t"]
+        ts = apify_reserve_run(source, cfg)
         raw = apify_call(cfg, render_url(template, s, settings))
         items = [x for x in (apify_to_listing(i) for i in raw) if x]
         ex("UPDATE apify_usage SET items=? WHERE source_id=? AND ts=?", (len(raw), source["id"], ts))
@@ -784,7 +817,7 @@ def run_source(source):
 
 
 def poller():
-    while True:
+    while not STOP.is_set():
         try:
             settings = get_settings()
             interval = max(float(settings["poll_minutes"] or 10), MIN_POLL_MINUTES) * 60
@@ -801,6 +834,8 @@ def poller():
         except Exception:  # noqa: BLE001
             traceback.print_exc()
         _force_run.wait(timeout=20)
+        if STOP.is_set():
+            return
 
 
 # ---------------------------------------------------------------- API logic
@@ -1051,6 +1086,16 @@ def r_source_run(h, body, params, sid):
     return mask_source(q("SELECT * FROM sources WHERE id=?", (sid,))[0])
 
 
+@route("POST", r"/api/sources/(\d+)/test")
+def r_source_test(h, body, params, sid):
+    rows = q("SELECT * FROM sources WHERE id=?", (sid,))
+    if not rows:
+        raise ApiError(404, "No such source")
+    if rows[0]["type"] != "apify":
+        raise ApiError(400, "Test is only available for Apify sources")
+    return test_apify_source(rows[0])
+
+
 @route("GET", "/api/searches")
 def r_searches(h, body, params):
     return [search_out(s) for s in q("SELECT * FROM searches ORDER BY id")]
@@ -1195,12 +1240,12 @@ class Handler(BaseHTTPRequestHandler):
             return hmac.compare_digest(tok, ingest_token())
         return hmac.compare_digest(self.cookie("session"), session_token())
 
-    def send(self, status, payload, ctype="application/json"):
+    def send(self, status, payload, ctype="application/json", cache="no-store"):
         data = payload if isinstance(payload, bytes) else json.dumps(payload, default=str).encode()
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         if urllib.parse.urlparse(self.path).path in CORS_PATHS:
             self.send_header("Access-Control-Allow-Origin", "*")
         for k, v in self.extra_headers:
@@ -1222,6 +1267,16 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def handle_any(self, method):
+        global _active
+        with _active_lock:
+            _active += 1
+        try:
+            self._handle_any(method)
+        finally:
+            with _active_lock:
+                _active -= 1
+
+    def _handle_any(self, method):
         self.extra_headers = []
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -1262,12 +1317,20 @@ class Handler(BaseHTTPRequestHandler):
     def static(self, path):
         name = "index.html" if path in ("/", "") else path.lstrip("/")
         full = os.path.normpath(os.path.join(STATIC_DIR, name))
-        if not full.startswith(STATIC_DIR) or not os.path.isfile(full):
-            full = os.path.join(STATIC_DIR, "index.html")
-        types = {".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css",
-                 ".svg": "image/svg+xml", ".json": "application/json", ".png": "image/png"}
+        if not full.startswith(STATIC_DIR + os.sep) or not os.path.isfile(full):
+            if os.path.splitext(name)[1]:  # a missing file with an extension is a real 404, not the app page
+                return self.send(404, b"Not found", "text/plain")
+            full, name = os.path.join(STATIC_DIR, "index.html"), "index.html"
+        types = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css",
+                 ".svg": "image/svg+xml", ".json": "application/json", ".png": "image/png",
+                 ".webmanifest": "application/manifest+json"}
         with open(full, "rb") as f:
-            self.send(200, f.read(), types.get(os.path.splitext(full)[1], "application/octet-stream"))
+            data = f.read()
+        if name == "sw.js":  # cache name carries the app version, so it can never drift from VERSION
+            data = data.replace(b"__VERSION__", VERSION.encode())
+        # shell, manifest and worker must always be revalidated; icons and screenshots may be cached
+        cache = "no-cache" if name in ("index.html", "sw.js", "manifest.webmanifest", "offline.html") else "public, max-age=86400"
+        self.send(200, data, types.get(os.path.splitext(full)[1], "application/octet-stream"), cache=cache)
 
     def do_GET(self):
         self.handle_any("GET")
@@ -1282,13 +1345,45 @@ class Handler(BaseHTTPRequestHandler):
         self.handle_any("DELETE")
 
 
+def log(msg):
+    print(f"{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')} {msg}", flush=True)
+
+
 def main():
     if not os.environ.get("APP_PASSWORD"):
-        print(f"APP_PASSWORD not set. Generated password: {app_password()}", flush=True)
-    threading.Thread(target=poller, daemon=True).start()
+        print("ERROR: APP_PASSWORD is required (the web UI password). Set it in the container environment, "
+              "see deploy/.env.example.", file=sys.stderr, flush=True)
+        sys.exit(1)
+    poll_thread = threading.Thread(target=poller, daemon=True)
+    poll_thread.start()
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"Classifieds Tracker listening on :{PORT}", flush=True)
+    srv.daemon_threads = True
+
+    def on_signal(signum, _frame):
+        log(f"signal {signum} received, shutting down")
+        threading.Thread(target=srv.shutdown, daemon=True).start()  # must not run in the serving thread
+
+    signal.signal(signal.SIGTERM, on_signal)
+    signal.signal(signal.SIGINT, on_signal)
+    log(f"Marketplace Browser {VERSION} listening on :{PORT}")
     srv.serve_forever()
+    # stop accepting, let in-flight requests finish (up to 5 s), stop the poller, close the database
+    srv.server_close()
+    STOP.set()
+    _force_run.set()
+    deadline = time.time() + 5
+    while _active and time.time() < deadline:
+        time.sleep(0.05)
+    poll_thread.join(timeout=5)
+    if poll_thread.is_alive():
+        log("poller still busy; leaving the database to be closed at exit")
+    else:
+        with _lock:
+            try:
+                _conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            finally:
+                _conn.close()
+    log("stopped cleanly")
 
 
 if __name__ == "__main__":

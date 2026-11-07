@@ -80,9 +80,9 @@ Limits: without "Fetch listing details" results carry no coordinates, so the ser
 
 Chrome or Edge (version 116+). Not published to a store: load it unpacked.
 
-1. Unzip `the `extension/` folder from the repo` (or use the `extension/` folder).
+1. Download `marketplace-browser-extension-X.Y.Z.zip` from the latest GitHub release and unzip it (or use the `extension/` folder of the repo).
 2. Open `chrome://extensions`, enable Developer mode, "Load unpacked", pick the folder.
-3. Open the extension's **Options**: enter the server URL (e.g. `http://192.168.1.20:<PORT_HOST>`) and the ingest token from the tracker's Settings. "Test connection" should report the version.
+3. Open the extension's **Options**: enter the server URL (e.g. `http://192.168.1.20:8045`, or `https://marketplace.hoffmanhouse.ca`) and the ingest token from the tracker's Settings. "Test connection" should report the version.
 4. In the tracker, add a source of type **Browser extension / API** named `Facebook Marketplace` and press "Use Facebook Marketplace preset" (fills the search URL template from your global location). Do the same for `Kijiji` if you want Kijiji searches run automatically (you must supply its URL template; the default is empty).
 5. Use it:
    - **Run all searches now**: opens each saved search's page one at a time in a background tab, scrolls, reads the listings, closes the tab and posts the results.

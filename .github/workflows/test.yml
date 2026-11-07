@@ -1,5 +1,5 @@
 name: test
-# Tests only. No image is built or pushed here; images come from tags (release.yml).
+# Tests only. Nothing is pushed here; images are pushed by release.yml. The Docker build below only proves the image builds and starts.
 on:
   push:
     branches: [main]
@@ -20,3 +20,22 @@ jobs:
         run: python3 tests/smoke.py
       - name: Apify source test (fake Apify API)
         run: python3 tests/apify_test.py
+      - name: PWA files, caching, SIGTERM and fail-fast config
+        run: python3 tests/pwa_test.py
+      - name: Browser layout and PWA test (phone, tablet, desktop)
+        run: |
+          pip install playwright
+          python3 -m playwright install --with-deps chromium
+          python3 tests/e2e_layout.py
+      - name: Docker build and container health check
+        run: |
+          docker build -t mb-test .
+          docker run -d --name mb-test -e APP_PASSWORD=ci-pass -p 18500:8045 mb-test
+          for i in $(seq 1 30); do
+            B="$(wget -qO- http://127.0.0.1:18500/healthz 2>/dev/null || true)"
+            [ -n "$B" ] && break; sleep 1
+          done
+          echo "$B"
+          [ "$B" = "{\"status\":\"ok\",\"version\":\"$(tr -d '[:space:]' < VERSION)\"}" ]
+          docker stop -t 10 mb-test
+          [ "$(docker inspect -f '{{.State.ExitCode}}' mb-test)" = "0" ]

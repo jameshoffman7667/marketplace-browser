@@ -159,6 +159,25 @@ def main():
         s, r = call("PUT", f"/api/sources/{src['id']}", {"name": "Apify FB", "type": "apify", "config": {
             "token": "********", "daily_cap": 100}})
         check("editing keeps stored token", s == 200)
+        # --- Test button: 3 results, nothing stored, no alert, counts toward the cap
+        before_feed = len(call("GET", "/api/feed")[1]["items"]); before_hooks = len(HOOKS); n = len(CALLS)
+        u0 = [x for x in call("GET", "/api/sources")[1] if x["id"] == src["id"]][0]["usage"]["runs_24h"]
+        ITEMS[:] = [item(10, "Standing desk test A"), item(11, "Standing desk test B"), item(12, "Standing desk test C"),
+                    item(13, "Standing desk test D")]
+        s, r = call("POST", f"/api/sources/{src['id']}/test")
+        check("test endpoint answers", s == 200 and r.get("returned") == 4 and r.get("usable") == 4, str(r)[:300])
+        check("test asks for 3 results only", len(CALLS) == n + 1 and CALLS[-1]["body"].get("resultsLimit") == 3, str(CALLS[-1]["body"]))
+        check("test shows mapped listings and raw field names", len(r.get("listings", [])) >= 1 and "marketplace_listing_title" in r.get("raw_keys", []))
+        check("test stores nothing", len(call("GET", "/api/feed")[1]["items"]) == before_feed)
+        time.sleep(1.5)
+        check("test sends no alert", len(HOOKS) == before_hooks)
+        s, srcs2 = call("GET", "/api/sources")
+        u1 = [x for x in srcs2 if x["id"] == src["id"]][0]["usage"]["runs_24h"]
+        check("test counts toward run usage", u1 == u0 + 1, f"{u0} -> {u1}")
+        s, r = call("POST", f"/api/sources/{src['id']}/test")
+        check("test response never contains the token", "SECRET" not in json.dumps(r))
+        ITEMS[:] = [item(1, "Standing desk oak")]
+
         MODE["status"] = 402
         s, r = call("POST", f"/api/sources/{src['id']}/run")
         err = r.get("last_error") or ""

@@ -1,8 +1,8 @@
-# Classifieds Tracker: Functional Specification v0.3
+# Marketplace Browser: Functional Specification v0.4
 
-Version: v0.3.5 · Date: 2026-10-22 · Status: current-state spec (edited in place each release). Last change: compact /healthz body and body-checking health checks.
+Version: v0.4.0 · Date: 2026-11-07 · Status: current-state spec (edited in place each release). Last change: installable PWA, phone and desktop layouts, Apify Test button, clean shutdown, port 8045.
 
-Status key used in the requirement tables: **Done** built and tested · **Partial** built with a gap noted · **Planned** not in v0.3.
+Status key used in the requirement tables: **Done** built and tested · **Partial** built with a gap noted · **Planned** not built yet.
 
 ## 1. Summary
 
@@ -106,9 +106,20 @@ Default sources: Facebook Marketplace via mode C; Kijiji via mode B or C.
 | --- | --- | --- |
 | UI-1 | Feed with filters for search, source and state (active, saved, hidden, all), NEW badge, mark all seen | Done |
 | UI-2 | Pages for searches, sources and settings; location shown in the header | Done |
-| UI-3 | Phone and desktop layout; dark mode follows the system | Done |
+| UI-3 | Phone and desktop layout; dark mode follows the system | Done (see 5.5.1 and 5.5.2) |
+| UI-4 | Installable PWA | Done (see 5.5.3; needs the HTTPS hostname to install) |
+| UI-5 | Apify source Test button (3 results, nothing stored or alerted, counts toward the cap) | Done; live trial pending an Apify token |
 | ACC-1 | Access control | Partial (one shared password for a single user, no accounts) |
 | ACC-2 | Export and delete all data | Planned |
+
+#### 5.5.1 Mobile layout (under 768 px)
+Header with brand and location chip; bottom navigation with four icons and labels (Feed, Searches, Sources, Settings); one-column feed with 80 px thumbnails; dialogs open as bottom sheets; controls at least 44 px high; safe-area insets respected; no horizontal scroll down to 320 px.
+
+#### 5.5.2 Desktop layout (768 px and up)
+Fixed side navigation (icons only from 768 px, icons and labels from 1024 px); page title in the header; content up to 1100 px wide; feed in two columns from 1280 px. Browser Back moves between pages; keys 1 to 4 switch pages when no field is focused. Light and dark follow the system.
+
+#### 5.5.3 PWA
+Manifest (`/manifest.webmanifest`: id, scope, start_url, standalone, 192, 512 and maskable icons, wide and narrow screenshots). Service worker (`/sw.js`, version-stamped) caches only the app shell and the offline page; it never handles `/api/`, sign-in or `/healthz`. A waiting worker shows "Update available, Reload"; the page reloads only after the person taps it and never on first install. Settings has an Install card (Install button where the browser offers one, iOS Add to Home Screen instructions otherwise). Installing requires HTTPS: `https://marketplace.hoffmanhouse.ca`. If Cloudflare Access protects that host, the manifest, `sw.js`, offline page, icons and screenshots must bypass it, and so must `/api/ingest` and `/api/extension/tasks` for the extension.
 
 ### 5.6 Browser extension
 
@@ -167,6 +178,8 @@ Session cookie required unless noted. The ingest token goes in the `X-Ingest-Tok
 | `POST /api/login`, `/api/logout`; `GET /api/me` | Session |
 | `GET/PUT /api/settings`; `POST /api/geocode` | Global location, alerts, quiet hours, polling (secrets masked) |
 | `GET/POST /api/sources`, `PUT/DELETE /api/sources/{id}`, `POST /api/sources/{id}/run` | Sources |
+| `POST /api/sources/{id}/test` | Apify only: one run with 3 results for the first active search; returns mapped listings and raw field names; stores nothing, sends no alert, counts toward the daily cap |
+| `GET /manifest.webmanifest`, `/sw.js`, `/offline.html`, `/icons/*`, `/screenshots/*` (open) | PWA files; `sw.js` and the manifest are never cached |
 | `GET/POST /api/searches`, `PUT/DELETE /api/searches/{id}` | Saved searches |
 | `GET /api/feed`; `POST /api/listings/{id}/state`; `POST /api/feed/mark-seen` | Feed and per-listing state |
 | `GET /api/alerts`; `POST /api/test-alert` | Alert log and test |
@@ -175,10 +188,11 @@ Session cookie required unless noted. The ingest token goes in the `X-Ingest-Tok
 
 ## 9. Deployment and release
 
-- **Port:** the server listens on `PORT` (default 3501). On the home server `deploy/compose.yaml` publishes `${PORT_HOST}:${PORT_HOST}` and sets `PORT` to the same number.
-- **Image only:** `mybadreligon/marketplace-browser`, built for linux/amd64 by the tag workflow. No local-build compose file; the compose file pins the exact release tag.
+- **Port:** the server listens on `PORT` (default 8045, the port register value). On the home server `deploy/compose.yaml` publishes `${PORT_HOST}:${PORT_HOST}` and sets `PORT` to the same number.
+- **Image only:** `mybadreligon/marketplace-browser`, built for linux/amd64 by the release workflow. No local-build compose file; the compose file pins the exact release tag.
 - **Runtime:** container user 1000:100, `init: true`, data in `/data` (bind folder `<FAST_STORAGE>/marketplace-browser`), health check `GET /healthz` on `$PORT` (no login; returns exactly the compact body `{"status":"ok","version":"<image tag>"}` with no spaces; the image and compose health checks require `"status":"ok"` in it; only checks the local database, never an outside service; 30 s start period in the image and the compose file). Variables: `PORT_HOST`, `APP_PASSWORD`, `INGEST_TOKEN`, `MIN_POLL_MINUTES`, `FAST_STORAGE`, optional `TZ` (default America/Toronto).
-- **Releases:** a release is a commit pushed to `main` that changes `VERSION`. `release.yml` reads the version, fails if tag `vX.Y.Z` or its GitHub release already exists or the CHANGELOG entry is missing or invalid (Short at most 50, Long at most 250 characters), pushes image tags `X.Y.Z`, `X.Y` and `latest`, then runs `gh release create vX.Y.Z --target $GITHUB_SHA`, which creates the tag. The `v*.*.*` tag trigger is only a manual fallback; both paths share one concurrency group and the same duplicate check. Every release also updates `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md`. `test.yml` runs the tests on pushes and pull requests.
+- **Releases:** a release is a commit pushed to `main` that changes `VERSION`. `release.yml` reads the version, fails if tag `vX.Y.Z` or its GitHub release already exists or the CHANGELOG entry is missing or invalid (Short at most 50, Long at most 250 characters), pushes image tags `X.Y.Z`, `X.Y` and `latest`, then runs `gh release create vX.Y.Z --target $GITHUB_SHA`, which creates the tag. The `v*.*.*` tag trigger is only a manual fallback; both paths share one concurrency group and the same duplicate check. Every release also updates `deploy/compose.yaml`, `deploy/.env.example` and `deploy/RELEASE.md`. The workflow also attaches `marketplace-browser-extension-X.Y.Z.zip` to the release. `test.yml` runs every test, builds the Docker image and checks `/healthz` and a clean stop in a running container, on pushes and pull requests.
+- **Shutdown and config:** SIGTERM or SIGINT finishes running requests and the poller (5 s each), closes the database and exits 0 within 10 s. The server exits with a message if `APP_PASSWORD` is missing.
 - **Update timing:** `deploy/RELEASE.md` has a fixed line `Update: now` or `Update: later`. `now` only when the owner's build message was "build, push and update"; Claude Code deploys those right away and deploys `later` releases in its regular daily update run.
 - **Versioning:** `MAJOR.MINOR.PATCH`; patch for fixes, minor for features, major only on explicit decision. Requests are logged in `docs/pending-changes.md` and built on request.
 

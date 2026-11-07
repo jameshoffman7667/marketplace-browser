@@ -2,22 +2,81 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#1f6f5c">
-<title>Classifieds Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121513" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Marketplace">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<title>Marketplace Browser</title>
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--ink:#1d2321;--mute:#66706b;--line:#dcdad2;--acc:#1f6f5c;--acc-ink:#fff;--warn:#b4531a;--bad:#b3261e;--chip:#ecebe4;--new:#e6f2ee}
 @media (prefers-color-scheme:dark){:root{--bg:#121513;--card:#1b1f1d;--ink:#e8ece9;--mute:#98a39d;--line:#2b312e;--acc:#4fb79c;--acc-ink:#0b1210;--warn:#e89a62;--bad:#f2867e;--chip:#262c29;--new:#1a2b26}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
-.bar{max-width:980px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.brand{font-weight:700;letter-spacing:.2px}
-.loc{margin-left:auto;font-size:13px;color:var(--mute);background:var(--chip);border-radius:999px;padding:4px 12px;cursor:pointer;border:0}
-nav{max-width:980px;margin:0 auto;display:flex;gap:4px;padding:0 12px 8px;overflow-x:auto}
-nav button{border:0;background:none;color:var(--mute);padding:8px 14px;border-radius:8px;font:inherit;cursor:pointer;white-space:nowrap}
-nav button.on{background:var(--acc);color:var(--acc-ink);font-weight:600}
-main{max-width:980px;margin:0 auto;padding:16px}
+html{-webkit-text-size-adjust:100%}
+body{overscroll-behavior-y:none;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:calc(8px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 8px calc(16px + env(safe-area-inset-left));display:flex;align-items:center;gap:12px}
+.brand{font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:8px;min-width:0}
+.brand img{width:28px;height:28px;border-radius:7px;flex:none}
+.pagetitle{display:none;font-size:18px;font-weight:700}
+.loc{margin-left:auto;font-size:13px;color:var(--mute);background:var(--chip);border-radius:999px;padding:0 14px;min-height:36px;cursor:pointer;border:0;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.side .sbrand{display:none}
+nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+nav button{border:0;background:none;color:var(--mute);min-height:56px;padding:6px 4px;font:inherit;font-size:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+nav button.on{color:var(--acc);font-weight:700}
+main{max-width:1100px;margin:0 auto;padding:16px calc(16px + env(safe-area-inset-right)) 16px calc(16px + env(safe-area-inset-left))}
+.foot{text-align:center;padding:8px 0 24px}
+.btn,a.btn{font:inherit}
+a.btn.sm{font-size:13px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.feedgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:0 12px}
+.tw{overflow-x:auto}
+pre.raw{overflow:auto;max-height:40vh;font-size:12px;background:var(--chip);padding:8px;border-radius:8px;white-space:pre-wrap;word-break:break-word}
+.upd{position:fixed;left:12px;right:12px;bottom:calc(70px + env(safe-area-inset-bottom));z-index:30;background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center}
+.upd .grow{flex:1}
+.upd button{border:0;border-radius:8px;min-height:36px;padding:0 14px;font:inherit;font-weight:700;background:var(--acc);color:var(--acc-ink);cursor:pointer}
+@media (min-width:768px){
+  body{padding-bottom:0;padding-left:84px}
+  .top{padding-left:24px}
+  .brand{display:none}
+  .pagetitle{display:block}
+  .side{top:0;right:auto;bottom:0;width:84px;border-top:0;border-right:1px solid var(--line);padding:12px 0;display:flex;flex-direction:column;align-items:stretch}
+  .side .sbrand{display:flex;justify-content:center;padding:4px 0 14px}
+  .side .sbrand img{width:40px;height:40px;border-radius:10px}
+  .side .sbrand span{display:none}
+  nav{display:flex;flex-direction:column;gap:4px;padding:0 8px}
+  nav button{border-radius:10px;min-height:60px}
+  nav button.on{background:var(--acc);color:var(--acc-ink)}
+  .upd{left:auto;right:20px;bottom:20px;max-width:420px}
+}
+@media (min-width:1024px){
+  body{padding-left:230px}
+  .side{width:230px;padding:16px 12px}
+  .side .sbrand{justify-content:flex-start;gap:10px;align-items:center;padding:4px 8px 18px;font-weight:700}
+  .side .sbrand span{display:inline}
+  nav{padding:0}
+  nav button{flex-direction:row;justify-content:flex-start;gap:12px;font-size:15px;min-height:44px;padding:8px 12px}
+  .top{padding-left:32px}
+  main{padding:20px 32px}
+}
+@media (min-width:1280px){.feedgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:767px), (pointer:coarse){
+  button.btn,a.btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  button.sm{min-height:44px;padding:4px 14px}
+  input:not([type=checkbox]),select,textarea{min-height:44px}
+  label.inline input{min-width:22px;min-height:22px}
+}
+@media (max-width:767px){
+  .item img,.item .ph{width:80px;height:80px}
+  dialog{width:100vw;max-width:100vw;max-height:92dvh;margin:auto 0 0;border-radius:16px 16px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom))}
+}
 h2{margin:0 0 12px;font-size:18px}
 h3{margin:18px 0 8px;font-size:15px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
@@ -31,19 +90,19 @@ button.btn,a.btn{border:1px solid var(--line);background:var(--card);color:var(-
 button.btn.pri{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
 button.btn.danger{color:var(--bad)}
 button.sm{padding:4px 10px;font-size:13px}
-input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+input,select,textarea{width:100%;max-width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
 label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 label.inline{display:flex;gap:8px;align-items:center;color:var(--ink);margin:6px 0}
 label.inline input{width:auto}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-@media(max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media(max-width:560px){.grid2,.grid3{grid-template-columns:minmax(0,1fr)}}
 .item{display:flex;gap:12px;align-items:flex-start}
 .item.isnew{background:var(--new);border-color:var(--acc)}
 .item img{width:96px;height:96px;object-fit:cover;border-radius:8px;background:var(--chip);flex:none}
 .item .ph{width:96px;height:96px;border-radius:8px;background:var(--chip);flex:none}
 .price{font-weight:700;font-size:16px}
-.title{font-weight:600;color:var(--ink);text-decoration:none;display:block;margin-bottom:2px}
+.title{font-weight:600;color:var(--ink);text-decoration:none;display:block;margin-bottom:2px;overflow-wrap:anywhere}
 .title:hover{text-decoration:underline}
 .acts{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
 dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(560px,94vw);padding:18px;max-height:92vh;overflow:auto}
@@ -77,7 +136,7 @@ function toast(msg, ms = 3200) {
 const guard = fn => async (...a) => { try { await fn(...a); } catch (e) { if (e.message !== 'login') toast(e.message); } };
 
 function showLogin() {
-  $('#app').innerHTML = `<div id="login"><h2>Classifieds Tracker</h2><div class="card">
+  $('#app').innerHTML = `<div id="login"><h2>Marketplace Browser</h2><div class="card">
     <label>Password</label><input id="pw" type="password" autofocus>
     <div style="margin-top:12px"><button class="btn pri" id="go">Sign in</button></div><div id="lerr" class="bad" style="margin-top:8px"></div></div></div>`;
   const go = async () => { try { await api('POST', '/api/login', {password: $('#pw').value}); boot(); } catch (e) { $('#lerr').textContent = e.message; } };
@@ -89,7 +148,7 @@ async function boot() {
     S.me = await api('GET', '/api/me');
   } catch (e) { return; }
   await loadBase();
-  renderShell(); show(S.tab);
+  renderShell(); history.replaceState({tab: S.tab}, ''); show(S.tab, true);
 }
 async function loadBase() {
   [S.settings, S.sources, S.searches] = await Promise.all([api('GET', '/api/settings'), api('GET', '/api/sources'), api('GET', '/api/searches')]);
@@ -99,19 +158,69 @@ function locLabel() {
   if (!s.lat || !s.lon) return 'Set location';
   return (s.location_label ? s.location_label.split(',')[0] : s.lat + ', ' + s.lon) + ' · ' + (s.radius_km || 0) + ' km';
 }
+const TABS = ['feed', 'searches', 'sources', 'settings'];
+const LABEL = {feed: 'Feed', searches: 'Searches', sources: 'Sources', settings: 'Settings'};
+const ICONS = {
+  feed: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+  searches: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>',
+  sources: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 7v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5"/></svg>',
+  settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>'};
 function renderShell() {
-  $('#app').innerHTML = `<header><div class="bar"><span class="brand">Classifieds Tracker</span>
-    <button class="loc" id="locbtn" title="Change location for all searches">${esc(locLabel())}</button></div>
-    <nav>${['feed','searches','sources','settings'].map(t => `<button data-t="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</nav></header>
-    <main id="main"></main><footer class="mute" style="text-align:center;padding:8px 0 24px">Classifieds Tracker v${esc(S.me.version || '')}</footer>`;
+  $('#app').innerHTML = `<aside class="side"><div class="sbrand"><img src="/icons/icon-192.png" alt=""><span>Marketplace Browser</span></div>
+    <nav aria-label="Main">${TABS.map(t => `<button data-t="${t}" aria-label="${LABEL[t]}">${ICONS[t]}<span>${LABEL[t]}</span></button>`).join('')}</nav></aside>
+    <header class="top"><span class="brand"><img src="/icons/icon-192.png" alt="">Marketplace Browser</span><span class="pagetitle" id="ptitle"></span>
+    <button class="loc" id="locbtn" title="Change location for all searches">${esc(locLabel())}</button></header>
+    <main id="main"></main><footer class="mute foot">Marketplace Browser v${esc(S.me.version || '')}</footer>`;
   document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.t));
   $('#locbtn').onclick = () => show('settings');
 }
-function show(tab) {
+function show(tab, fromPop) {
   S.tab = tab;
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  document.querySelectorAll('nav button').forEach(b => { b.classList.toggle('on', b.dataset.t === tab); b.toggleAttribute('aria-current', b.dataset.t === tab); });
   const lb = $('#locbtn'); if (lb) lb.textContent = locLabel();
+  const pt = $('#ptitle'); if (pt) pt.textContent = LABEL[tab];
+  document.title = LABEL[tab] + ' · Marketplace Browser';
+  if (!fromPop && history.state?.tab !== tab) history.pushState({tab}, '');
   ({feed: viewFeed, searches: viewSearches, sources: viewSources, settings: viewSettings})[tab]();
+}
+addEventListener('popstate', e => { if (S.me) show(e.state?.tab || 'feed', true); });
+document.addEventListener('keydown', e => {
+  if (!S.me || e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input,select,textarea,dialog')) return;
+  const i = '1234'.indexOf(e.key); if (i >= 0) show(TABS[i]);
+});
+
+/* ---------------------------------------------------------------- PWA: install, offline shell, updates */
+let installEvt = null, reloadWanted = false, hadController = false;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (S.me && S.tab === 'settings') viewSettings(); });
+addEventListener('appinstalled', () => { installEvt = null; toast('Installed'); });
+function offerUpdate(worker) {
+  if ($('.upd')) return;
+  const b = document.createElement('div'); b.className = 'upd'; b.setAttribute('role', 'status');
+  b.innerHTML = '<span class="grow">Update available.</span><button id="updgo">Reload</button>';
+  document.body.appendChild(b);
+  $('#updgo').onclick = () => { reloadWanted = true; worker.postMessage('SKIP_WAITING'); };
+}
+if ('serviceWorker' in navigator) {
+  hadController = !!navigator.serviceWorker.controller;
+  // reload only when the user asked for the update and the page already had a worker (never on first install)
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && reloadWanted) location.reload(); hadController = true; });
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').then(reg => {
+    if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      if (w) w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(w); });
+    });
+    setInterval(() => reg.update().catch(() => {}), 3600e3);
+  }).catch(() => {}));
+}
+function installCard() {
+  let body;
+  if (standalone()) body = '<div class="ok">Installed. You are using the app.</div>';
+  else if (installEvt) body = '<button class="btn pri" id="inst">Install app</button>';
+  else if (/iphone|ipad|ipod/i.test(navigator.userAgent)) body = '<div class="mute">On iPhone or iPad: tap Share, then Add to Home Screen.</div>';
+  else body = '<div class="mute">Use your browser\'s menu: Install app (Chrome, Edge) or Add to Home Screen. Installing needs the HTTPS address of this server.</div>';
+  return `<div class="card"><h3 style="margin-top:0">Install as an app</h3>${body}<div class="mute" style="margin-top:8px">Keyboard: 1 Feed, 2 Searches, 3 Sources, 4 Settings.</div></div>`;
 }
 
 /* ---------------------------------------------------------------- feed */
@@ -121,12 +230,12 @@ async function viewFeed() {
   const data = await api('GET', '/api/feed?' + qs).catch(e => ({items: [], total: 0}));
   const opt = (arr, key, val) => arr.map(x => `<option value="${x.id}" ${String(val) === String(x.id) ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   $('#main').innerHTML = `<div class="card row">
-    <select id="fs" style="width:auto"><option value="">All searches</option>${opt(S.searches, 'id', f.search_id)}</select>
-    <select id="fsrc" style="width:auto"><option value="">All sources</option>${opt(S.sources, 'id', f.source_id)}</select>
+    <select id="fs" style="width:auto;max-width:100%"><option value="">All searches</option>${opt(S.searches, 'id', f.search_id)}</select>
+    <select id="fsrc" style="width:auto;max-width:100%"><option value="">All sources</option>${opt(S.sources, 'id', f.source_id)}</select>
     <select id="fst" style="width:auto">${[['active','Active'],['saved','Saved'],['hidden','Hidden'],['all','Everything']].map(([v, l]) => `<option value="${v}" ${f.state === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <span class="grow"></span><span class="mute">${data.total} listing${data.total === 1 ? '' : 's'}</span>
     <button class="btn sm" id="seen">Mark all seen</button></div>
-    ${data.items.length ? data.items.map(feedCard).join('') : `<div class="empty">${S.searches.length ? 'No listings yet. They appear here once your sources have been checked.' : 'Create a saved search to get started.'}</div>`}`;
+    ${data.items.length ? '<div class="feedgrid">' + data.items.map(feedCard).join('') + '</div>' : `<div class="empty">${S.searches.length ? 'No listings yet. They appear here once your sources have been checked.' : 'Create a saved search to get started.'}</div>`}`;
   $('#fs').onchange = e => { S.feedFilter.search_id = e.target.value; viewFeed(); };
   $('#fsrc').onchange = e => { S.feedFilter.source_id = e.target.value; viewFeed(); };
   $('#fst').onchange = e => { S.feedFilter.state = e.target.value; viewFeed(); };
@@ -202,14 +311,32 @@ function viewSources() {
   <div class="card mute">Facebook Marketplace and Kijiji have no public search API. Use their own saved-search alert emails (Alert mailbox) or push results from your own signed-in browser (Browser extension / API). See the README.</div>
   ${S.sources.length ? S.sources.map(s => `<div class="card"><div class="row"><div class="grow"><strong>${esc(s.name)}</strong> <span class="chip">${typeName[s.type]}</span> ${s.enabled ? '' : '<span class="chip">paused</span>'}
   <div class="mute">Last checked ${agoText(s.last_run)}${s.last_error ? ` · <span class="bad">${esc(s.last_error)}</span>` : s.last_ok ? ' · <span class="ok">OK</span>' : ''}${s.fail_count >= 3 ? ' · <span class="warn">needs attention</span>' : ''}${s.usage ? ` · ${s.usage.runs_24h} runs, ${s.usage.items_24h} results in the last 24 h` : ''}</div></div>
-  ${s.type !== 'ingest' ? `<button class="btn sm" data-run="${s.id}">Check now</button>` : ''}<button class="btn sm" data-edit="${s.id}">Edit</button><button class="btn sm danger" data-del="${s.id}">Delete</button></div></div>`).join('') : '<div class="empty">No sources yet.</div>'}`;
+  ${s.type === 'apify' ? `<button class="btn sm" data-test="${s.id}">Test (3 results)</button>` : ''}${s.type !== 'ingest' ? `<button class="btn sm" data-run="${s.id}">Check now</button>` : ''}<button class="btn sm" data-edit="${s.id}">Edit</button><button class="btn sm danger" data-del="${s.id}">Delete</button></div></div>`).join('') : '<div class="empty">No sources yet.</div>'}`;
   $('#add').onclick = () => sourceDialog();
   document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => sourceDialog(S.sources.find(s => s.id == b.dataset.edit)));
+  document.querySelectorAll('[data-test]').forEach(b => b.onclick = guard(async () => {
+    b.textContent = 'Testing…'; b.disabled = true;
+    try { const r = await api('POST', `/api/sources/${b.dataset.test}/test`); await loadBase(); viewSources(); testDialog(r); }
+    catch (e) { b.textContent = 'Test (3 results)'; b.disabled = false; throw e; }
+  }));
   document.querySelectorAll('[data-run]').forEach(b => b.onclick = guard(async () => { b.textContent = 'Checking…'; await api('POST', `/api/sources/${b.dataset.run}/run`); await loadBase(); viewSources(); }));
   document.querySelectorAll('[data-del]').forEach(b => b.onclick = guard(async () => {
     if (!confirm('Delete this source and all listings found through it?')) return;
     await api('DELETE', '/api/sources/' + b.dataset.del); await loadBase(); viewSources();
   }));
+}
+function testDialog(r) {
+  const d = dialog(`<h2>Apify test</h2>
+  <div class="mute">Search "${esc(r.search)}": ${r.returned} result${r.returned === 1 ? '' : 's'} returned, ${r.usable} usable. Nothing was saved and no alert was sent. This counted as one run toward the daily cap.</div>
+  <label>Page requested</label><code>${esc(r.url)}</code>
+  <h3>Mapped listings</h3>
+  ${r.listings.length ? r.listings.map(l => `<div class="card"><strong>${esc(l.title)}</strong>
+    <div class="mute">${l.price != null ? esc(l.currency || '$') + ' ' + esc(l.price) : 'no price'} · ${esc(l.location || 'no location')} · ${l.image ? 'image' : 'no image'} · ${l.lat != null ? 'coordinates' : 'no coordinates'}</div>
+    <div class="mute"><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.url)}</a></div></div>`).join('') : '<div class="empty">No usable listings came back.</div>'}
+  <h3>Fields in the first raw result</h3><div>${r.raw_keys.map(k => `<span class="chip">${esc(k)}</span>`).join('') || '<span class="mute">none</span>'}</div>
+  <details style="margin-top:8px"><summary class="mute">First raw result</summary><pre class="raw">${esc(r.first_raw)}</pre></details>
+  <div class="row" style="margin-top:14px"><span class="grow"></span><button class="btn pri" id="ok">Close</button></div>`);
+  $('#ok', d).onclick = () => d.close();
 }
 function sourceDialog(s) {
   s = s || {name: '', type: 'feed', config: {}, enabled: 1};
@@ -274,12 +401,13 @@ async function viewSettings() {
     <div class="grid2"><div><label>SMTP user</label><input id="su" value="${esc(s.smtp_user)}"></div><div><label>SMTP password</label><input id="spw" type="password" value="${esc(s.smtp_password)}"></div></div>
     <div class="grid3"><div><label>From</label><input id="sf" value="${esc(s.smtp_from)}"></div><div><label>To</label><input id="st" value="${esc(s.smtp_to)}"></div><div><label>Security</label><select id="stls">${['starttls','ssl','none'].map(v => `<option ${s.smtp_tls === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
     <div class="grid3"><div><label>Quiet hours from</label><input id="qs" type="time" value="${esc(s.quiet_start)}"></div><div><label>to</label><input id="qe" type="time" value="${esc(s.quiet_end)}"></div><div><label>Check every (min)</label><input id="pm" type="number" min="1" value="${esc(s.poll_minutes)}"></div></div>
-    <label>This server's public URL (used in alert links)</label><input id="bu" value="${esc(s.base_url)}" placeholder="https://tracker.example.com">
+    <label>This server's public URL (used in alert links)</label><input id="bu" value="${esc(s.base_url)}" placeholder="https://marketplace.hoffmanhouse.ca">
     <div class="row" style="margin-top:12px"><button class="btn pri" id="savealerts">Save</button><button class="btn" id="test">Send test alert</button></div></div>
+  ${installCard()}
   <div class="card"><h3 style="margin-top:0">Browser extension / API</h3>
-    <div class="mute">Paste this token into the browser extension's options (or send it as the <code>X-Ingest-Token</code> header):</div><p><code id="tok">${esc(S.me.ingest_token)}</code></p>
+    <div class="mute">Paste this token into the browser extension's options (or send it as the <code>X-Ingest-Token</code> header):</div><p><code id="tok" style="display:block">${esc(S.me.ingest_token)}</code></p>
     <div class="mute">POST <code>/api/ingest</code> with <code>{"source":"Facebook Marketplace","search_id":1,"listings":[{"id","url","title","price","image","location"}]}</code></div></div>
-  <div class="card"><h3 style="margin-top:0">Recent alert log</h3>${alerts.length ? `<table><tr><th>When</th><th>Via</th><th>Title</th><th></th></tr>${alerts.map(a => `<tr><td>${new Date(a.ts * 1000).toLocaleString()}</td><td>${esc(a.channel)}</td><td>${esc(a.title)}</td><td>${a.ok ? '<span class="ok">sent</span>' : '<span class="bad">' + esc(a.error) + '</span>'}</td></tr>`).join('')}</table>` : '<div class="mute">Nothing sent yet.</div>'}</div>
+  <div class="card"><h3 style="margin-top:0">Recent alert log</h3>${alerts.length ? `<div class="tw"><table><tr><th>When</th><th>Via</th><th>Title</th><th></th></tr>${alerts.map(a => `<tr><td>${new Date(a.ts * 1000).toLocaleString()}</td><td>${esc(a.channel)}</td><td>${esc(a.title)}</td><td>${a.ok ? '<span class="ok">sent</span>' : '<span class="bad">' + esc(a.error) + '</span>'}</td></tr>`).join('')}</table></div>` : '<div class="mute">Nothing sent yet.</div>'}</div>
   <div><button class="btn" id="logout">Sign out</button></div>`;
   $('#find').onclick = guard(async () => {
     const r = await api('POST', '/api/geocode', {q: $('#lq').value});
@@ -295,6 +423,7 @@ async function viewSettings() {
     toast('Saved');
   });
   $('#test').onclick = guard(async () => { const r = await api('POST', '/api/test-alert'); toast(r.ok ? 'Test alert sent' : 'Test failed, see the log below'); viewSettings(); });
+  const inst = $('#inst'); if (inst) inst.onclick = async () => { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; viewSettings(); };
   $('#logout').onclick = async () => { await api('POST', '/api/logout'); showLogin(); };
 }
 boot();

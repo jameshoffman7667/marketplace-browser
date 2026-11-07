@@ -1,56 +1,91 @@
 name: release
-# Release = commit and push main with a new version in VERSION (no tag push needed).
-# The job builds and pushes the image, then `gh release create --target $GITHUB_SHA` creates the tag and release.
-# The v*.*.* tag trigger is a manual fallback only; the guard below stops both paths releasing the same version.
+
+# A release is a push to main that changes the version in the VERSION file.
+# The job builds and pushes the images, then `gh release create --target $GITHUB_SHA` creates
+# the GitHub release and the vX.Y.Z tag itself. No tag push is needed.
+# The v*.*.* tag trigger is a manual fallback only (tag pushed by hand from a machine that may push tags).
+# Two runs for the same version cannot both release: they share a concurrency group, and the
+# second one stops at the "already released" check.
 on:
   push:
     branches: [main]
-    paths: [VERSION, package.json]
+    paths: [VERSION]
     tags: ["v*.*.*"]
 
 permissions:
   contents: write
 
-# One release at a time. A second run for the same version then finds the tag/release and stops.
-concurrency:
-  group: release
-  cancel-in-progress: false
-
 jobs:
-  image:
+  prepare:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
+    outputs:
+      release: ${{ steps.v.outputs.release }}
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Resolve version and check for a duplicate release
+      - name: Read the version
+        id: v
         shell: bash
         run: |
           set -euo pipefail
-          if [ -f package.json ]; then
-            FILE_VERSION="$(node -p "require('./package.json').version")"
-          elif [ -f VERSION ]; then
-            FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
-          else
-            echo "No version file"; exit 1
-          fi
-          [[ "$FILE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version '$FILE_VERSION' is not MAJOR.MINOR.PATCH"; exit 1; }
+          read_version() { # $1 = git ref or empty for the working tree
+            if [ -n "$1" ]; then
+              if git cat-file -e "$1:package.json" 2>/dev/null; then git show "$1:package.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version"; elif git cat-file -e "$1:VERSION" 2>/dev/null; then git show "$1:VERSION" | tr -d '[:space:]'; fi
+            else
+              if [ -f package.json ]; then node -p "require('./package.json').version"; elif [ -f VERSION ]; then tr -d '[:space:]' < VERSION; fi
+            fi
+          }
+          VERSION="$(read_version '')"
+          [ -n "$VERSION" ] || { echo "No version file (package.json or VERSION)"; exit 1; }
+          echo "Version in this commit: $VERSION"
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            echo "Manual fallback: tag $GITHUB_REF_NAME"
-            [ "$FILE_VERSION" = "$VERSION" ] || { echo "Version file ($FILE_VERSION) != tag ($VERSION)"; exit 1; }
+            # manual fallback: the tag decides, and the version file must agree with it
+            [ "${GITHUB_REF_NAME#v}" = "$VERSION" ] || { echo "Version file ($VERSION) != tag ($GITHUB_REF_NAME)"; exit 1; }
+            RELEASE=true
           else
-            VERSION="$FILE_VERSION"
-            echo "Release from main: v$VERSION at $GITHUB_SHA"
-            if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
-              echo "Tag v$VERSION already exists. Bump VERSION to release again."; exit 1
+            BEFORE="${{ github.event.before }}"
+            OLD=""
+            if [ -n "$BEFORE" ] && ! echo "$BEFORE" | grep -Eq '^0+$' && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+              OLD="$(read_version "$BEFORE" || true)"
+            fi
+            if [ "$OLD" = "$VERSION" ]; then
+              echo "Version unchanged ($VERSION): nothing to release."
+              RELEASE=false
+            else
+              echo "Version changed: '${OLD:-none}' -> '$VERSION'"
+              RELEASE=true
             fi
           fi
-          if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "A GitHub release for v$VERSION already exists. Nothing to do."; exit 1
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  image:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    # one release per version at a time; a second run for the same version waits, then stops at the check below
+    concurrency:
+      group: release-${{ needs.prepare.outputs.version }}
+      cancel-in-progress: false
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Releasing v$VERSION"
+          # not released yet: neither a tag nor a GitHub release may exist for this version
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            if [ "$GITHUB_REF_TYPE" != "tag" ]; then echo "Tag v$VERSION already exists: bump the version"; exit 1; fi
           fi
+          if gh release view "v$VERSION" >/dev/null 2>&1; then echo "GitHub release v$VERSION already exists: bump the version"; exit 1; fi
           # changelog must contain this version with Short <= 50 and Long <= 250 chars
           grep -q "^## v$VERSION " CHANGELOG.md || { echo "CHANGELOG.md has no entry for v$VERSION"; exit 1; }
           SHORT="$(awk -v v="## v$VERSION " 'index($0,v)==1{f=1;next} f&&/^\*\*Short:\*\*/{sub(/^\*\*Short:\*\* /,"");print;exit}' CHANGELOG.md)"
@@ -58,8 +93,6 @@ jobs:
           [ "${#SHORT}" -gt 0 ] && [ "${#SHORT}" -le 50 ] || { echo "Short is ${#SHORT} chars (max 50)"; exit 1; }
           [ "${#LONG}" -gt 0 ] && [ "${#LONG}" -le 250 ] || { echo "Long is ${#LONG} chars (max 250)"; exit 1; }
           echo "SHORT=$SHORT" >> "$GITHUB_ENV"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "MAJOR_MINOR=${VERSION%.*}" >> "$GITHUB_ENV"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -73,8 +106,8 @@ jobs:
         with:
           images: mybadreligon/${{ github.event.repository.name }}
           tags: |
-            type=raw,value=${{ env.VERSION }}
-            type=raw,value=${{ env.MAJOR_MINOR }}
+            type=semver,pattern={{version}},value=v${{ env.VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ env.VERSION }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.version=${{ env.VERSION }}
@@ -89,5 +122,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: GitHub release (also creates the tag)
-        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION - $SHORT" --notes-file <(awk -v v="## v$VERSION " 'index($0,v)==1{f=1;next} f&&/^## v/{exit} f' CHANGELOG.md)
+      - name: GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          # the browser extension is attached to every release (manifest version must equal the app version)
+          EXT_VERSION="$(python3 -c "import json;print(json.load(open('extension/manifest.json'))['version'])")"
+          [ "$EXT_VERSION" = "$VERSION" ] || { echo "extension/manifest.json ($EXT_VERSION) != VERSION ($VERSION)"; exit 1; }
+          ZIP="$RUNNER_TEMP/marketplace-browser-extension-$VERSION.zip"
+          (cd extension && zip -r -X "$ZIP" . -x '*.DS_Store')
+          NOTES="$(mktemp)"
+          awk -v v="## v$VERSION " 'index($0,v)==1{f=1;next} f&&/^## v/{exit} f' CHANGELOG.md > "$NOTES"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            gh release create "v$VERSION" --verify-tag --title "v$VERSION - $SHORT" --notes-file "$NOTES" "$ZIP"
+          else
+            # creates the tag v$VERSION on this exact commit as part of the release
+            gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION - $SHORT" --notes-file "$NOTES" "$ZIP"
+          fi

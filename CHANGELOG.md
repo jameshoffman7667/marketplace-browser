@@ -2,6 +2,24 @@
 
 Versions are `MAJOR.MINOR.PATCH`; the git tag is `vMAJOR.MINOR.PATCH` and equals `VERSION`, the extension manifest and the Docker tag. Newest first. Each entry has a Short (50 characters or fewer) and a Long (250 or fewer) comment, used for the commit and the GitHub release. Entries v0.1, v0.2 and v0.3 predate this format and were never tagged or published as images.
 
+## v0.4.0 - 2026-11-07
+**Short:** PWA, phone/desktop UI, Apify test, port 8045
+**Long:** Installable app (PWA) with phone and desktop layouts, clean SIGTERM shutdown, fail-fast config check, Apify Test button, port 8045, canonical release workflow, extension zip on each release. Hostname: marketplace.hoffmanhouse.ca.
+
+### Added
+- Installable web app (PWA): manifest with wide and narrow screenshots and maskable icon, service worker for the app shell only (never `/api/`, sign-in or the health check; versioned cache, "Update available, Reload" prompt, no reload on first install), offline page, Install button in Settings, iPhone and iPad instructions. Installing needs the HTTPS hostname `marketplace.hoffmanhouse.ca`.
+- Phone and desktop layouts: bottom navigation on phones (44 px touch targets, safe-area insets), side navigation from 768 px, two-column feed from 1280 px, light and dark mode, no horizontal scroll down to 320 px. Browser Back moves between pages; keys 1 to 4 switch pages.
+- Apify sources have a **Test (3 results)** button: one small run for the first active search, shows the mapped listings and the raw field names. Nothing is stored, no alert is sent, and it counts toward the daily run cap (`POST /api/sources/{id}/test`).
+- Every GitHub release carries `marketplace-browser-extension-X.Y.Z.zip`.
+- Tests: `tests/pwa_test.py` (manifest, icons, screenshots, service worker, caching, SIGTERM, fail-fast) and `tests/e2e_layout.py` (four viewport sizes, touch targets, service worker, offline, back navigation, Apify dialog). `test.yml` also builds the Docker image and checks `/healthz` in a running container.
+
+### Changed
+- Clean shutdown: SIGTERM or SIGINT stops accepting work, lets running requests and the poller finish (up to 5 s each), checkpoints and closes the database, and exits 0 within 10 s.
+- Fail fast: the server exits with a clear message when `APP_PASSWORD` is missing (previously only compose enforced it).
+- `release.yml` is now the canonical v1.9 workflow (compares the version before and after a push, per-version concurrency, tag path only as manual fallback) plus the extension zip step.
+- Default port is 8045 (register). Existing stacks keep working on 3501 until `PORT_HOST` in the stack `.env` is changed; the extension's server URL must follow.
+- Static files: missing files return 404 (was the app page), `Cache-Control` is set per file type, `sw.js` carries the app version.
+
 ## v0.3.5 - 2026-11-07
 **Short:** Compact /healthz JSON; fix deployment notes
 **Long:** /healthz now sends exactly {"status":"ok","version":"X.Y.Z"} with no spaces. Image and compose health checks require "status":"ok" in the body, and tests lock the exact bytes. RELEASE.md now describes the real existing deployment.
